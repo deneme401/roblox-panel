@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+/* Tema next-themes tarafından <html class="dark"> ile değiştirilir. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Token'lar: docs/05-tasarim-sistemi.md */
+:root {
+  color-scheme: light;
+  --bg: #ececee;
+  --surface: #f7f7f8;
+  --inset: #ffffff;
+  --line: #e4e4e7;
+  --fg: #18181b;
+  --muted: #8a8a92;
+  --hero-from: #2b2b2f;
+  --hero-to: #0e0e10;
+  --hero-fg: #ffffff;
+  --hero-muted: #a1a1aa;
+  --accent: #18181b;
+  --accent-fg: #ffffff;
+  --pos: #16a34a;
+  --pos-soft: #dcfce7;
+  --neg: #dc2626;
+  --neg-soft: #fee2e2;
+  --warn: #f97316;
+  --info: #3b82f6;
+  --nav: #0e0e10;
+  --nav-fg: #a1a1aa;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px rgb(0 0 0 / 0.04);
+  --shadow-hero: 0 16px 40px rgb(0 0 0 / 0.22);
+
+  /* Grafik: tek seri mürekkebi + kategorik sıra (dataviz referans paleti) */
+  --chart-ink: #18181b;
+  --chart-grid: #e4e4e7;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+}
+
+.dark {
+  color-scheme: dark;
+  --bg: #1c1d21;
+  --surface: #26272c;
+  --inset: #2e2f35;
+  --line: #34353b;
+  --fg: #f4f4f5;
+  --muted: #8a8a92;
+  --hero-from: #ff6b5b;
+  --hero-to: #ff8a65;
+  --hero-fg: #ffffff;
+  --hero-muted: rgb(255 255 255 / 0.75);
+  --accent: #ff6b5b;
+  --accent-fg: #ffffff;
+  --pos: #4ade80;
+  --pos-soft: rgb(74 222 128 / 0.14);
+  --neg: #f87171;
+  --neg-soft: rgb(248 113 113 / 0.14);
+  --warn: #fb923c;
+  --info: #60a5fa;
+  --nav: #2e2f35;
+  --nav-fg: #8a8a92;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 8px 24px rgb(0 0 0 / 0.25);
+  --shadow-hero: 0 14px 36px rgb(255 107 91 / 0.35);
+
+  --chart-ink: #ff6b5b;
+  --chart-grid: #34353b;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-inset: var(--inset);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-pos: var(--pos);
+  --color-pos-soft: var(--pos-soft);
+  --color-neg: var(--neg);
+  --color-neg-soft: var(--neg-soft);
+  --color-warn: var(--warn);
+  --color-info: var(--info);
+  --color-nav: var(--nav);
+  --color-nav-fg: var(--nav-fg);
+  --color-hero-fg: var(--hero-fg);
+  --color-hero-muted: var(--hero-muted);
+  --font-sans: var(--font-jakarta), system-ui, sans-serif;
+  --radius-card: 28px;
+  --radius-inset: 20px;
+  --shadow-card: var(--shadow-card);
+  --shadow-hero: var(--shadow-hero);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.hero-gradient {
+  background: linear-gradient(160deg, var(--hero-from), var(--hero-to));
+  box-shadow: var(--shadow-hero);
+}
+
+/* Referans 1'deki hero kartın ince devre çizgisi dokusu */
+.hero-lines {
+  background-image:
+    radial-gradient(circle at 12% 18%, rgb(255 255 255 / 0.08) 0 6px, transparent 7px),
+    radial-gradient(circle at 88% 18%, rgb(255 255 255 / 0.08) 0 6px, transparent 7px),
+    linear-gradient(rgb(255 255 255 / 0.05) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 48px;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
