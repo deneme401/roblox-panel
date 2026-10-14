@@ -39,8 +39,26 @@ function cleanGenre(...candidates: (string | undefined | null)[]) {
   return candidates.find((c) => c && c !== "All") ?? null;
 }
 
+/**
+ * "use cache" içinde Date.now() kullanılamıyor (Cache Components); yaşlar önbellek dışında,
+ * istek anında hesaplanır.
+ */
+export function fillAges<T extends { createdAt: string; updatedAt: string; ageDays: number; updatedDaysAgo: number }>(rows: T[]): T[] {
+  const now = Date.now();
+  return rows.map((r) => ({
+    ...r,
+    ageDays: Math.floor((now - new Date(r.createdAt).getTime()) / DAY),
+    updatedDaysAgo: Math.floor((now - new Date(r.updatedAt).getTime()) / DAY),
+  }));
+}
+
 /** Keşif listelerindeki tüm oyunlar, detay ve ikonlarıyla birleştirilmiş halde. */
 export async function getDiscoverGames(): Promise<{ games: GameRow[]; fetchedAt: string }> {
+  const games = fillAges(await discoverCached());
+  return { games, fetchedAt: new Date().toISOString() };
+}
+
+async function discoverCached(): Promise<GameRow[]> {
   "use cache";
   cacheLife("minutes");
 
@@ -56,7 +74,6 @@ export async function getDiscoverGames(): Promise<{ games: GameRow[]; fetchedAt:
   const ids = [...sortRank.keys()];
   const [details, votes, icons] = await Promise.all([getGames(ids), getVotes(ids), getIcons(ids)]);
   const voteMap = new Map(votes.map((v) => [v.id, v]));
-  const now = Date.now();
 
   const games: GameRow[] = details.map((g) => {
     const v = voteMap.get(g.id);
@@ -74,12 +91,12 @@ export async function getDiscoverGames(): Promise<{ games: GameRow[]; fetchedAt:
       creator: g.creator.name,
       createdAt: g.created,
       updatedAt: g.updated,
-      ageDays: Math.floor((now - new Date(g.created).getTime()) / DAY),
-      updatedDaysAgo: Math.floor((now - new Date(g.updated).getTime()) / DAY),
+      ageDays: 0,
+      updatedDaysAgo: 0,
       sorts: sortRank.get(g.id) ?? {},
     };
   });
-  return { games, fetchedAt: new Date(now).toISOString() };
+  return games;
 }
 
 export type GameDetail = GameRow & {
@@ -92,6 +109,11 @@ export type GameDetail = GameRow & {
 };
 
 export async function getGameDetail(universeId: number): Promise<GameDetail | null> {
+  const g = await gameDetailCached(universeId);
+  return g ? fillAges([g])[0] : null;
+}
+
+async function gameDetailCached(universeId: number): Promise<GameDetail | null> {
   "use cache";
   cacheLife("minutes");
 
@@ -103,7 +125,6 @@ export async function getGameDetail(universeId: number): Promise<GameDetail | nu
     getGamePasses(universeId).catch(() => []),
   ]);
   if (!g) return null;
-  const now = Date.now();
   return {
     universeId: g.id,
     placeId: g.rootPlaceId,
@@ -123,8 +144,8 @@ export async function getGameDetail(universeId: number): Promise<GameDetail | nu
     creator: g.creator.name,
     createdAt: g.created,
     updatedAt: g.updated,
-    ageDays: Math.floor((now - new Date(g.created).getTime()) / DAY),
-    updatedDaysAgo: Math.floor((now - new Date(g.updated).getTime()) / DAY),
+    ageDays: 0,
+    updatedDaysAgo: 0,
     sorts: {},
     passes: passes.filter((p) => p.isForSale).map((p) => ({ id: p.id, name: p.name, price: p.price })),
   };

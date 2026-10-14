@@ -31,3 +31,27 @@ Format: **#No — Başlık** (tarih). Bağlam → Karar → Sonuç.
 ### #6 — shadcn yerine kendi küçük bileşen setimiz (2026-10-14)
 - **Bağlam:** Referans tasarım çok özgün (hap menü, inset kartlar, taralı barlar); shadcn'in varsayılan görünümü uzak.
 - **Karar:** `src/components/ui` altında Tailwind ile kendi bileşenlerimiz yazılır.
+
+### #8 — DB'ye yalnızca sunucudan doğrudan Postgres bağlantısı (2026-10-14)
+- **Bağlam:** Kullanıcı Supabase URL, publishable key ve veritabanı şifresini verdi; service_role key yok. Supabase JS + RLS politikaları ile tarayıcıdan erişim, publishable key herkese açık olduğu için verileri dışarı açardı.
+- **Karar:** Tüm okuma/yazma Server Component ve Server Action'larda `postgres` istemcisiyle (transaction pooler, `prepare:false`). Tüm tablolarda RLS açık, politika yok → PostgREST'ten erişim kapalı.
+- **Sonuç:** Service role key gerekmiyor. Supabase'in hazır Auth/RLS özellikleri kullanılmıyor; yetki kontrolü Server Action'larda `requireMember()`.
+
+### #9 — E-posta yerine isim seçimli giriş + ortak şifre (2026-10-14)
+- **Bağlam:** Kullanıcı "maile şimdilik gerek yok, isimler Yusuf ile Mertcan" dedi.
+- **Karar:** `/login`'de isim seçilir, HMAC-SHA256 (`SESSION_SECRET`) imzalı 60 günlük httpOnly çerez verilir. `proxy.ts` iyimser kontrol yapar. Canlıda `APP_PASSWORD` tanımlanınca şifre de istenir.
+- **Sonuç:** Kurulum kolay. Şifre ortak olduğu için iki kişi birbirinin adıyla girebilir (güven ilişkisi varsayıldı). İleride Supabase Auth'a geçmek için `getMember()` tek nokta.
+
+### #10 — Realtime: veri değil "değişti" sinyali (2026-10-14)
+- **Bağlam:** RLS kapalı kapı olduğundan postgres_changes aboneliği publishable key ile veri alamaz/vermemeli.
+- **Karar:** Supabase Realtime `broadcast` kanalı `rr-workspace` üzerinden yalnızca `{topic}` gönderilir; alan taraf `router.refresh()` yapar. `presence` ile kimin çevrimiçi olduğu gösterilir.
+- **Sonuç:** Veri kanaldan sızmaz. Notlarda eş zamanlı düzenleme CRDT değil; son kaydeden kazanır, çakışmada uyarı gösterilir (2 kişi için yeterli).
+
+### #11 — Vercel fonksiyon bölgesi syd1 (2026-10-14)
+- **Bağlam:** Supabase projesi ap-southeast-2'de. Türkiye'den bağlantı kurulumu ~1,5 sn, paralel sorgular 10 sn zaman aşımına takıldı.
+- **Karar:** `vercel.json` → `regions: ["syd1"]`; `db.ts` `connect_timeout: 30`, `idle_timeout: 300`.
+- **Sonuç:** Canlıda DB gecikmesi düşük; tarayıcı ↔ Vercel arası uzak ama sayfalar akışla (Suspense) gelir.
+
+### #12 — Tüm uygulama sayfaları istek anında render (2026-10-14)
+- **Bağlam:** Cache Components ile prerender sırasında `Date.now()` ("x dk önce", yaş, çerez süresi) hata veriyor; `"use cache"` içinde de yasak.
+- **Karar:** Sayfalar `await connection()` ile dinamik; pazar verisi yine `"use cache"` ile 5 dk önbellekli; yaşlar `fillAges()` ile önbellek dışında hesaplanır.

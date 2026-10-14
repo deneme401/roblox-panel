@@ -31,14 +31,16 @@ RoRadar, iki kişilik ekibimizin Roblox oyun geliştirme sürecinde kullandığ�
 |---|---|---|
 | 0 | Proje iskeleti, docs, git | ✅ |
 | 1 | Tasarım sistemi + layout + bileşen vitrini | ✅ |
-| 2 | Supabase şema, auth, allowlist | ⬜ (Supabase bilgileri bekleniyor) |
-| 3 | Roblox toplayıcıları + metrikler | ⬜ |
-| 4 | Pano, Trendler, Oyun Detay | 🟡 canlı API ile çalışıyor; büyüme/geçmiş DB bekliyor |
-| 5 | Kıyaslama | ⬜ |
-| 6 | Workspace: notlar, fikirler, realtime | ⬜ |
-| 7 | Gemini AI katmanı | ⬜ (Gemini key bekleniyor) |
-| 8 | Apify sinyalleri | ⬜ |
-| 9 | Deploy + zamanlama | ⬜ |
+| 2 | Supabase şema, giriş (isim + şifre), ekip | ✅ |
+| 3 | Roblox toplayıcıları + metrikler + yükseliş skoru | ✅ |
+| 4 | Pano, Trendler, Oyun Detay | ✅ (büyüme verisi 24 saat/7 gün içinde dolar) |
+| 5 | Kıyaslama | ✅ |
+| 6 | Workspace: notlar, fikirler, yorumlar, aktivite, realtime | ✅ |
+| 7 | Gemini AI katmanı | 🟡 kod hazır; **Gemini anahtarı bekleniyor** |
+| 8 | Apify sinyalleri | ✅ |
+| 9 | Deploy + zamanlama | 🟡 `vercel.json` + `setup-cron.mjs` hazır; **Vercel hesabıyla deploy bekleniyor** |
+
+**Kalan kullanıcı adımları:** docs/07-kurulum-ve-deploy.md → "Vercel'e deploy".
 
 ## Kurallar
 - Gizli anahtarlar (API key, token, şifre) **asla** docs'a ya da git'e yazılmaz; yalnızca `.env.local` ve Vercel env içinde tutulur.

@@ -1,41 +1,66 @@
 # 04 — Veritabanı (Supabase)
 
-> Durum: **tasarım**. SQL migration'ları Faz 2'de `supabase/migrations/` altına yazılacak.
+> Durum: **uygulandı** (2026-10-14). Proje ref `ttsbfpzpgujvplciiczx`, bölge **ap-southeast-2 (Sidney)**, Postgres 17.
+> Şema: `supabase/migrations/*.sql`, uygulama: `node scripts/migrate.mjs` (uygulananlar `_migrations` tablosunda).
+
+## Erişim modeli (ADR #8)
+- Uygulama veritabanına **yalnızca sunucudan** `postgres` (porsager) istemcisiyle bağlanır: `src/lib/db.ts`, transaction pooler (6543, `prepare: false`).
+- **Tüm tablolarda RLS açık, hiç politika yok.** Böylece tarayıcıdaki publishable key ile PostgREST'ten hiçbir tablo okunamaz/yazılamaz. `postgres` rolü RLS'i bypass eder.
+- Supabase Auth kullanılmıyor; kimlik `members` + imzalı çerez (bkz. 02-mimari).
+- `postgres.camel` dönüşümü açık: kolonlar **ve jsonb anahtarları** camelCase okunur. Bu yüzden jsonb'ye yazılan AI çıktılarının anahtarları baştan camelCase (`riskScore`, `whyRising`...).
+- `bigint`/`numeric` JS `number` olarak döner (`types` ayarı).
 
 ## Tablolar
 
 ### Oyun verisi
 | Tablo | Alanlar | Not |
 |---|---|---|
-| `games` | `universe_id` PK, `place_id`, `name`, `creator_name`, `creator_type`, `genre`, `genre_l1`, `genre_l2`, `created_at_rbx`, `updated_at_rbx`, `icon_url`, `ai_tags text[]`, `tracked bool`, `first_seen_at` | `tracked` = ekibin elle takibe aldığı oyunlar |
-| `game_snapshots` | `universe_id`, `ts`, `playing`, `visits`, `favorites`, `up_votes`, `down_votes` | Saatlik. **30 gün** saklanır. |
-| `game_daily` | `universe_id`, `day`, `avg_playing`, `peak_playing`, `visits`, `favorites`, `up_votes`, `down_votes` | Günlük özet, kalıcı |
-| `sort_appearances` | `ts`, `sort_id`, `universe_id`, `rank` | Listeye ilk giriş zamanını yakalamak için |
-| `game_passes` | `universe_id`, `pass_id`, `name`, `price`, `is_for_sale`, `first_seen_at`, `last_seen_at` | |
-| `game_metrics` (view) | CCU Δ24s %, Δ7g %, visits/gün, like oranı, yaş (gün), **rise_score** | |
-| `signals` | `id`, `source`, `url`, `title`, `author`, `views`, `published_at`, `matched_universe_id` | |
-| `job_runs` | `job`, `started_at`, `finished_at`, `ok`, `message`, `rows` | Ayarlar sayfasındaki iş durumu |
+| `games` | `universe_id` PK, `place_id`, `name`, `description`, `creator_name/type`, `genre`, `subgenre`, `max_players`, `created_at_rbx`, `updated_at_rbx`, `icon_url`, `ai_tags[]`, `ai_analysis jsonb`, `ai_model`, `ai_analyzed_at`, `tracked`, `tracked_by`, `first_seen_at`, `last_seen_in_sort_at`, `last_snapshot_at` | `tracked` = elle takip |
+| `game_snapshots` | PK (`universe_id`, `ts`), `playing`, `visits`, `favorites`, `up_votes`, `down_votes` | Saatlik (ts saat başına yuvarlanır). **30 gün** |
+| `game_daily` | PK (`universe_id`, `day`), `avg_playing`, `peak_playing`, `visits`, `favorites`, oylar, `samples` | Kalıcı günlük özet (UTC gün) |
+| `sort_appearances` | PK (`sort_id`, `universe_id`, `ts`), `rank` | Saatlik liste sırası, 30 gün |
+| `sort_presence` | PK (`sort_id`, `universe_id`), `first_seen_at`, `last_seen_at`, `best_rank`, `last_rank` | Listeye ilk giriş (kalıcı) |
+| `game_passes` | PK (`universe_id`, `pass_id`), `name`, `price`, `is_for_sale`, `first_seen_at`, `last_seen_at` | "yeni pass" tespiti |
+| `game_updates` | PK (`universe_id`, `updated_at_rbx`), `seen_at` | Güncelleme geçmişi |
+| `signals` | `source`, `external_id` (unique ikili), `url`, `title`, `author`, `views`, `likes`, `comments`, `thumbnail`, `published_at`, `query`, `matched_universe_id` | |
+| `job_runs` | `job`, `started_at`, `finished_at`, `ok`, `rows`, `message` | 30 gün |
+| `ai_calls` | `kind`, `model`, `ok`, `error`, `ms` | Model zinciri istatistiği, 30 gün |
 
 ### Workspace
 | Tablo | Alanlar |
 |---|---|
-| `allowed_users` | `email` PK, `display_name` |
-| `ideas` | `id`, `title`, `pitch`, `status` (idea/research/prototype/dropped), `scores jsonb`, `ai_eval jsonb`, `owner`, timestamps |
-| `idea_games` | `idea_id`, `universe_id` (rakip bağlantısı) |
-| `notes` | `id`, `title`, `content jsonb` (TipTap), `entity_type` (general/game/idea), `entity_id`, `pinned`, `tags text[]`, `updated_by`, timestamps |
-| `comments` | `id`, `entity_type`, `entity_id`, `body`, `author`, `created_at` |
-| `activity` | `id`, `actor`, `verb`, `entity_type`, `entity_id`, `meta jsonb`, `created_at` |
-| `compare_sets` | `id`, `name`, `universe_ids bigint[]` |
+| `members` | `id` ('yusuf', 'mertcan'), `display_name`, `color` — `src/lib/auth/members.ts` ile aynı |
+| `ideas` | `id` uuid, `title`, `pitch`, `genre`, `status` (idea/research/prototype/dropped), `position` (kanban sırası, float), `scores jsonb` {demand, competition, effort, monetization, virality}, `ai_eval jsonb`, `ai_model`, `ai_evaluated_at`, `owner`, timestamps |
+| `idea_games` | (`idea_id`, `universe_id`) rakip bağlantısı |
+| `notes` | `id`, `title`, `content jsonb` (TipTap), `plain` (arama/önizleme), `entity_type` (general/game/idea), `entity_id`, `pinned`, `tags[]`, `created_by`, `updated_by`, timestamps |
+| `comments` | `entity_type`, `entity_id`, `body`, `author` |
+| `activity` | `actor`, `verb`, `entity_type`, `entity_id`, `label`, `meta` |
+| `compare_sets` | `name`, `universe_ids bigint[]`, `created_by` |
 
-## Yükseliş Skoru (rise_score) — taslak
-```
-rise_score = 0.40 * norm(ccu_growth_24h)
-           + 0.25 * norm(ccu_growth_7d)
-           + 0.15 * new_in_up_and_coming (son 72 saat, 0/1)
-           + 0.10 * youth (oyun yaşı < 90 gün ise azalan)
-           + 0.10 * like_ratio
-```
-Küçük oyunların yüzdesel patlamasını dengelemek için CCU < 200 olanlar skorda cezalandırılır.
+## `game_metrics` view (0002_metrics.sql)
+Son 3 saatteki en yeni snapshot'ı olan oyunlar için:
+- `growth_24h` = (şimdi − 22–26 saat önceki ort.) / o ortalama
+- `growth_7d` = (şimdi − 165–171 saat önceki ort., yoksa 7 gün önceki `game_daily.avg_playing`) / o değer
+- `visits_24h`, `like_ratio`, `age_days`, `uac_first_seen`
 
-## RLS
-Tüm tablolarda RLS açık. Politika: `auth.jwt() ->> 'email'` değeri `allowed_users` içinde olmalı. Toplayıcılar `service_role` key ile yazar.
+### Yükseliş Skoru (rise_score, 0–100)
+```
+100 × ( 0.40 · tanh( Δ24s / max(oyuncu_24s_önce, 50) )
+      + 0.25 · tanh( Δ7g  / max(oyuncu_7g_önce, 50) / 2 )
+      + 0.15 · [Up-and-Coming'e son 72 saatte ilk kez girdi]
+      + 0.10 · max(0, 1 − yaş_gün / 90)
+      + 0.10 · beğeni_oranı )
+× (oyuncu < 200 ise 0.5)
+```
+- Paydadaki `max(…, 50)` küçük oyunların %1000'lik patlamalarını sınırlar; `tanh` uç değerleri bastırır.
+- Geçmiş veri yokken büyüme terimleri 0 sayılır, skor yaş + beğeni + yeni girişten oluşur (ilk gün ~30-35 civarı).
+
+## Fikir puanı (`src/app/(app)/ideas/scoring.ts`)
+- Talep ve rekabet bağlı rakiplerden otomatik (`autoScores` — `lib/data/workspace-shared.ts`): talep = log10(toplam oyuncu) − 1 ± büyüme; rekabet = 1 + (10B+ oyunculu rakip sayısı) + (toplam > 200B ise 1).
+- Efor, monetizasyon, viralite elle 1–5. Toplam = ortalama (rekabet ve efor ters) → 0–100.
+
+## Boyut tahmini
+~300 oyun × 24 snapshot × 30 gün ≈ 216k satır (~25–30 MB, indekslerle). İlk gün DB 12 MB. Ayarlar sayfası 500 MB sınırına göre doluluk gösterir.
+
+## Zamanlama
+`pg_cron` + `pg_net` + Vault: `scripts/setup-cron.mjs` (bkz. 07-kurulum-ve-deploy). Uzantılar açıldı (pg_cron 1.6.4, pg_net 0.20.4); işler Vercel adresi belli olunca kurulacak.

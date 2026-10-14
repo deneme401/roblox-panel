@@ -3,28 +3,53 @@
 ## Lokal geliştirme
 ```bash
 npm install
-cp .env.example .env.local   # değerleri doldur
-npm run dev                  # http://localhost:3000
+cp .env.example .env.local    # değerleri doldur
+node scripts/migrate.mjs      # supabase/migrations/*.sql'i uygular (idempotent)
+npm run dev                   # http://localhost:3000
 ```
-Gereksinim: Node 20.9+ (geliştirme makinesinde Node 24.14 kurulu).
+Gereksinim: Node 20.9+ (geliştirme makinesinde Node 24.14).
+
+**Toplayıcıları elle çalıştırma** (deploy olmadan da veri doldurur):
+```bash
+npx tsx --env-file=.env.local scripts/run-job.mts hourly    # listeler + snapshot (~20 sn)
+npx tsx --env-file=.env.local scripts/run-job.mts daily     # gamepass + günlük özet (+AI etiket)
+npx tsx --env-file=.env.local scripts/run-job.mts signals   # Apify (~0,12 $ kredi)
+```
+Ayarlar sayfasındaki "çalıştır" düğmeleri de aynı işi yapar.
 
 ## Ortam değişkenleri
-`.env.example` dosyasına bakın. Gerçek değerler yalnızca `.env.local` (git'e girmez) ve Vercel Project Settings → Environment Variables içinde tutulur.
+Şablon: `.env.example`. Gerçek değerler yalnızca `.env.local` (git'e girmez) ve Vercel → Environment Variables içinde.
 
-| Değişken | Nereden | Faz |
+| Değişken | Nereden / ne | Zorunlu |
 |---|---|---|
-| `APIFY_TOKEN` | Apify Console → Settings → Integrations | 8 |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Project Settings → API | 2 |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API (gizli!) | 2 |
-| `GEMINI_API_KEY` | https://aistudio.google.com/apikey | 7 |
-| `GEMINI_MODELS` | Virgülle ayrılmış model listesi (öncelik sırasıyla) | 7 |
-| `CRON_SECRET` | Rastgele uzun bir string | 3 |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase → API. Yalnızca Realtime (presence/broadcast) için; tablolara erişemez | ✅ |
+| `DATABASE_URL` | **Transaction pooler**: `postgres.<ref>@aws-0-ap-southeast-2.pooler.supabase.com:6543` | ✅ |
+| `DATABASE_URL_DIRECT` | `db.<ref>.supabase.co:5432` (yalnızca IPv6; scriptler için) | scriptler |
+| `SESSION_SECRET` | Rastgele 64 hex; giriş çerezini imzalar | ✅ |
+| `APP_PASSWORD` | Canlıda ekip şifresi. Boşsa giriş sadece isim seçimi | canlıda ✅ |
+| `CRON_SECRET` | Rastgele; `/api/cron/*` yetkisi | ✅ |
+| `APIFY_TOKEN`, `SIGNAL_ITEMS` | Apify → Settings → Integrations | sinyaller |
+| `GEMINI_API_KEY`, `GEMINI_MODELS` | https://aistudio.google.com/apikey | AI |
+
+## Vercel'e deploy (Faz 9)
+1. https://vercel.com → **Add New → Project → Import** `deneme401/roblox-panel` (Framework: Next.js, ayarlar varsayılan).
+2. **Environment Variables**: yukarıdaki tabloyu `.env.local`'daki değerlerle doldur. `APP_PASSWORD` için ikinizin bileceği bir şifre belirleyin.
+3. Deploy. `vercel.json` fonksiyonları **syd1** (Sidney) bölgesine sabitler; veritabanı ap-southeast-2'de olduğundan sorgular hızlı olur.
+4. Zamanlamayı kur (bir kez, lokalden):
+   ```bash
+   node scripts/setup-cron.mjs https://<proje>.vercel.app
+   ```
+   Bu script pg_cron + pg_net'i açar, adresi ve `CRON_SECRET`'ı **Supabase Vault**'a yazar ve işleri planlar:
+   | İş | Cron (UTC) | Türkiye saati |
+   |---|---|---|
+   | `rr-hourly` → `/api/cron/hourly` | `5 * * * *` | her saat :05 |
+   | `rr-daily` → `/api/cron/daily` | `10 3 * * *` | 06:10 |
+   | `rr-signals` → `/api/cron/signals` | `0 9 * * *` | 12:00 |
+   | `rr-cleanup` (pg_net/cron geçmişi) | `30 4 * * *` | 07:30 |
+5. Kontrol: Ayarlar → "Veri toplama işleri" son çalışmaları gösterir. Supabase SQL: `select * from cron.job_run_details order by start_time desc limit 10;`
+
+Vercel adresi değişirse 4. adımı yeni adresle tekrar çalıştırmak yeterli.
 
 ## Git
 - Remote: `https://github.com/deneme401/roblox-panel.git`, branch `main`.
-- Her faz sonunda commit + push yapılır.
-
-## Deploy (Faz 9'da detaylanacak)
-1. Vercel → Import Git Repository → `deneme401/roblox-panel`.
-2. Env değişkenlerini gir.
-3. Supabase SQL editöründe `pg_cron` + `pg_net` ile saatlik/günlük çağrıları kur.
+- Her faz sonunda commit + push.

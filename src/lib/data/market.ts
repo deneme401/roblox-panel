@@ -2,11 +2,9 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { sql } from "@/lib/db";
 import { SORT_IDS, type SortId } from "@/lib/roblox/client";
-import { getDiscoverGames, type GameRow } from "@/lib/roblox/queries";
+import { fillAges, getDiscoverGames, type GameRow } from "@/lib/roblox/queries";
 
 export const MARKET_TAG = "market";
-
-const DAY = 86_400_000;
 
 type MetricRow = {
   universeId: number;
@@ -31,9 +29,8 @@ type MetricRow = {
 };
 
 function toGameRow(m: MetricRow, sorts: Partial<Record<SortId, number>>, spark: number[]): GameRow {
-  const now = Date.now();
-  const created = m.createdAtRbx ? new Date(m.createdAtRbx) : new Date(now);
-  const updated = m.updatedAtRbx ? new Date(m.updatedAtRbx) : new Date(now);
+  const created = new Date(m.createdAtRbx ?? m.updatedAtRbx ?? 0);
+  const updated = new Date(m.updatedAtRbx ?? m.createdAtRbx ?? 0);
   return {
     universeId: m.universeId,
     placeId: m.placeId ?? 0,
@@ -48,8 +45,8 @@ function toGameRow(m: MetricRow, sorts: Partial<Record<SortId, number>>, spark: 
     creator: m.creatorName ?? "—",
     createdAt: created.toISOString(),
     updatedAt: updated.toISOString(),
-    ageDays: Math.floor((now - created.getTime()) / DAY),
-    updatedDaysAgo: Math.floor((now - updated.getTime()) / DAY),
+    ageDays: 0, // fillAges ile istek anında
+    updatedDaysAgo: 0,
     sorts,
     growth24h: m.growth24h,
     growth7d: m.growth7d,
@@ -66,6 +63,11 @@ function toGameRow(m: MetricRow, sorts: Partial<Record<SortId, number>>, spark: 
  * `source` DB mi canlı mı olduğunu söyler.
  */
 export async function getMarketRows(): Promise<{ games: GameRow[]; source: "db" | "live"; updatedAt: string | null }> {
+  const r = await marketRowsCached();
+  return r.source === "live" ? await getDiscoverGames().then((l) => ({ games: l.games, source: "live" as const, updatedAt: l.fetchedAt })) : { ...r, games: fillAges(r.games) };
+}
+
+async function marketRowsCached(): Promise<{ games: GameRow[]; source: "db" | "live"; updatedAt: string | null }> {
   "use cache";
   cacheLife({ stale: 60, revalidate: 300, expire: 3600 });
   cacheTag(MARKET_TAG);
@@ -76,10 +78,7 @@ export async function getMarketRows(): Promise<{ games: GameRow[]; source: "db" 
       m.growth_24h, m.growth_7d, m.visits_24h, m.rise_score, g.ai_tags
     from game_metrics m join games g using (universe_id)
     where m.tracked or g.last_seen_in_sort_at > now() - interval '2 days'`;
-  if (!metrics.length) {
-    const live = await getDiscoverGames();
-    return { games: live.games, source: "live", updatedAt: live.fetchedAt };
-  }
+  if (!metrics.length) return { games: [], source: "live", updatedAt: null };
 
   const [latest] = await sql<{ ts: Date | null }[]>`select max(ts) as ts from sort_appearances`;
   const ranks = latest?.ts

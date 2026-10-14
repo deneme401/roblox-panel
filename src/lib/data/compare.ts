@@ -1,7 +1,7 @@
 // Kıyaslama verisi: 2-5 oyunun metrikleri, geçmişi ve monetizasyonu.
 import { cacheLife, cacheTag } from "next/cache";
 import { sql } from "@/lib/db";
-import { getGameDetail } from "@/lib/roblox/queries";
+import { fillAges, getGameDetail } from "@/lib/roblox/queries";
 import { MARKET_TAG } from "./market";
 
 export type CompareGame = {
@@ -17,6 +17,8 @@ export type CompareGame = {
   growth7d: number | null;
   visits24h: number | null;
   riseScore: number | null;
+  createdAt: string;
+  updatedAt: string;
   ageDays: number;
   updatedDaysAgo: number;
   passCount: number;
@@ -28,9 +30,11 @@ export type CompareGame = {
   daily: { day: string; avgPlaying: number }[];
 };
 
-const DAY = 86_400_000;
-
 export async function getCompareData(ids: number[]): Promise<CompareGame[]> {
+  return fillAges(await compareCached(ids));
+}
+
+async function compareCached(ids: number[]): Promise<CompareGame[]> {
   "use cache";
   cacheLife({ stale: 60, revalidate: 300, expire: 3600 });
   cacheTag(MARKET_TAG);
@@ -66,7 +70,6 @@ export async function getCompareData(ids: number[]): Promise<CompareGame[]> {
   const daily = await sql<{ universeId: number; day: string; avgPlaying: number }[]>`
     select universe_id, day::text, avg_playing from game_daily where universe_id in ${sql(ids)} order by day`;
 
-  const now = Date.now();
   const out: CompareGame[] = [];
   for (const id of ids) {
     const r = rows.find((x) => x.universeId === id);
@@ -74,8 +77,8 @@ export async function getCompareData(ids: number[]): Promise<CompareGame[]> {
     const live = !r || r.playing == null ? await getGameDetail(id) : null;
     if (!r && !live) continue;
     const prices = (r?.prices ?? live?.passes.map((p) => p.price ?? 0).filter((p) => p > 0) ?? []).map(Number).sort((a, b) => a - b);
-    const created = r?.createdAtRbx ? new Date(r.createdAtRbx).getTime() : live ? new Date(live.createdAt).getTime() : now;
-    const updated = r?.updatedAtRbx ? new Date(r.updatedAtRbx).getTime() : live ? new Date(live.updatedAt).getTime() : now;
+    const created = r?.createdAtRbx ? new Date(r.createdAtRbx).toISOString() : (live?.createdAt ?? new Date(0).toISOString());
+    const updated = r?.updatedAtRbx ? new Date(r.updatedAtRbx).toISOString() : (live?.updatedAt ?? created);
     out.push({
       universeId: id,
       name: r?.name ?? live!.name,
@@ -89,8 +92,10 @@ export async function getCompareData(ids: number[]): Promise<CompareGame[]> {
       growth7d: r?.growth7d ?? null,
       visits24h: r?.visits24h ?? null,
       riseScore: r?.riseScore ?? null,
-      ageDays: Math.floor((now - created) / DAY),
-      updatedDaysAgo: Math.floor((now - updated) / DAY),
+      createdAt: created,
+      updatedAt: updated,
+      ageDays: 0,
+      updatedDaysAgo: 0,
       passCount: prices.length,
       priceMin: prices[0] ?? null,
       priceMedian: prices.length ? prices[Math.floor(prices.length / 2)] : null,

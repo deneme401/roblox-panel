@@ -17,11 +17,18 @@ Rate limit: Resmi bir sayı yok. Batch'ler arasında kısa bekleme yapılır, 42
 ## Apify
 - Key doğrulandı (`/v2/users/me` → 200). `.env.local` içinde `APIFY_TOKEN` olarak tutulur.
 - Store'daki Roblox actor'leri (ör. `moving_beacon-owner1/roblox-games-users-scraper`, `s_actors/roblox-game-stats-tracker`) düşük kullanımlı ve PAY_PER_EVENT fiyatlı. Resmi API aynı veriyi ücretsiz verdiği için **Roblox verisinde Apify kullanılmıyor.**
-- Apify'ın kullanım alanı: **sosyal sinyaller** (Faz 8'de actor seçimi yapılıp buraya yazılacak):
-  - YouTube arama ("roblox new game", "roblox update" vb.)
-  - TikTok hashtag (#roblox, #robloxgame)
-  - Reddit (r/roblox, r/robloxgamedev)
-- Maliyet kontrolü: her çalıştırmada `maxItems` sınırı uygulanır, günde 1 çalışır.
+- Apify'ın kullanım alanı: **sosyal sinyaller** (`src/lib/collect/signals.ts`). Seçilen actor'ler (2026-10-14, store'da en çok kullanılanlar, hepsi PAY_PER_EVENT):
+
+  | Kaynak | Actor | Girdi | Ücret | Notlar |
+  |---|---|---|---|---|
+  | YouTube | `streamers/youtube-scraper` (16k kullanıcı/30g) | `searchQueries: ["roblox new game"]`, `sortingOrder: "date"`, shorts/stream 0 | 0,004 $/sonuç | `dateFilter` ayrıca ücretli, kullanılmıyor |
+  | TikTok | `clockworks/tiktok-scraper` (29k) | `hashtags: ["robloxgame"]`, `resultsPerPage` | 0,0037 $/sonuç + 0,001 $/başlatma | indirme seçenekleri kapalı |
+  | Reddit | `trudax/reddit-scraper-lite` (8k) | r/roblox ve r/robloxgamedev `hot`, `skipComments` | 0,004 $/sonuç + 0,02 $/başlatma | Reddit'in kendi JSON API'si bizim IP'den engelli (HTML döndü), bu yüzden Apify |
+- Hesap **FREE plan, aylık 5 $ kredi**. `SIGNAL_ITEMS=8` (kaynak başına) ile günlük ≈ 0,12 $ → ayda ≈ 3,5 $.
+- İlk gerçek çalışma (2026-10-14): 24 sinyal, 75 sn. Oyun adı eşleşmesi 0 (başlıklar çoğunlukla genel); eşleştirme: oyun adı normalize edilip (`[..]`, emoji, noktalama silinir, ≥5 karakter) metinde tam kelime olarak aranır.
+- Çıktı alanları: YouTube `id,url,title,channelName,viewCount,likes,commentsCount,date,thumbnailUrl`; TikTok `id,text,webVideoUrl,playCount,diggCount,commentCount,createTimeISO,authorMeta.name,videoMeta.coverUrl`; Reddit `id,url,title,username,upVotes,numberOfComments,createdAt,dataType`.
 
 ## Gemini
-Faz 7'de doldurulacak: `models.list` ile doğrulanan ücretsiz modeller ve zincir sırası.
+- `src/lib/ai/gemini.ts`: `GEMINI_MODELS` sırayla denenir; 429/404/5xx/zaman aşımı (45 sn) → sıradaki model. Her çağrı `ai_calls` tablosuna yazılır, Ayarlar'da 24 saatlik başarı/hata görünür.
+- Varsayılan zincir: `gemini-2.5-flash` → `gemini-2.5-flash-lite` → `gemini-2.0-flash`. **Henüz anahtar yok, gerçek çağrı test edilmedi.** Anahtar eklenince Ayarlar → "Anahtarın erişebildiği modelleri listele" ile `models.list` sonucu görülür; zincir buna göre `GEMINI_MODELS` ile güncellenir.
+- Görevler (`src/lib/ai/tasks.ts`, JSON şemalı çıktı): fikir değerlendirme, oyun analizi, günlük toplu tür etiketleme (25 oyun).

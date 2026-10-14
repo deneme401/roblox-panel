@@ -10,9 +10,11 @@ function create() {
   return postgres(url, {
     ssl: "require",
     prepare: false, // transaction pooler (6543) prepared statement desteklemez
-    max: 5,
-    idle_timeout: 20,
-    connect_timeout: 10,
+    max: 8,
+    // DB Sidney'de (ap-southeast-2); uzak bağlantı kurulumu yavaş olduğundan bağlantıları açık tut.
+    // Canlıda Vercel fonksiyonları syd1 bölgesinde çalışır (vercel.json), gecikme düşüktür.
+    idle_timeout: 300,
+    connect_timeout: 30,
     transform: postgres.camel,
     // bigint (20) ve numeric (1700) JS number olarak gelsin; değerlerimiz 2^53 altında
     types: { bigint: numeric(20), numeric: numeric(1700) },
