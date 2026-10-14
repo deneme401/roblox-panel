@@ -7,6 +7,13 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  PolarAngleAxis,
+  PolarGrid,
+  Radar,
+  RadarChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -130,5 +137,105 @@ export function Sparkline({ values, width = 96, height = 32 }: { values: number[
       <polyline points={pts.map((p) => p.join(",")).join(" ")} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
       <circle cx={lx} cy={ly} r={3} fill={color} stroke="var(--inset)" strokeWidth={1.5} />
     </svg>
+  );
+}
+
+/** Kıyaslama için kategorik seri renkleri (sabit sıra; renk oyuna bağlı kalır, sıralamaya değil). */
+export const SERIES_COLORS = ["var(--series-1)", "var(--series-2)", "var(--series-3)", "var(--series-4)", "var(--series-5)"];
+
+export type Series = { key: string; name: string; color: string };
+
+type MultiTooltipProps = {
+  active?: boolean;
+  payload?: readonly { value?: unknown; name?: unknown; color?: string }[];
+  label?: unknown;
+  format: (v: number) => string;
+};
+
+function MultiTooltip({ active, payload, label, format }: MultiTooltipProps) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="min-w-40 rounded-2xl bg-inset px-3 py-2 text-xs shadow-card ring-1 ring-line">
+      <div className="mb-1 font-semibold">{String(label)}</div>
+      {[...payload]
+        .sort((a, b) => Number(b.value ?? 0) - Number(a.value ?? 0))
+        .map((p) => (
+          <div key={String(p.name)} className="flex items-center justify-between gap-3 tabular-nums">
+            <span className="flex items-center gap-1.5 truncate">
+              <span className="size-2 shrink-0 rounded-full" style={{ background: p.color }} />
+              <span className="truncate">{String(p.name)}</span>
+            </span>
+            <span className="font-semibold">{p.value == null ? "—" : format(Number(p.value))}</span>
+          </div>
+        ))}
+    </div>
+  );
+}
+
+/** Üst üste çizgi grafik (en fazla 5 seri). Tek eksen; normalize modda değerler endekstir (ilk nokta = 100). */
+export function MultiLineChart({
+  data,
+  series,
+  height = 300,
+  format = tickFormat,
+}: {
+  data: Record<string, number | string | null>[];
+  series: Series[];
+  height?: number;
+  format?: (v: number) => string;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={data} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+        <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
+        <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} minTickGap={28} dy={6} />
+        <YAxis tick={axisTick} tickLine={false} axisLine={false} width={48} tickFormatter={format} />
+        <Tooltip content={(p) => <MultiTooltip {...p} format={format} />} cursor={{ stroke: "var(--muted)", strokeWidth: 1 }} />
+        <Legend
+          verticalAlign="top"
+          align="left"
+          iconType="circle"
+          iconSize={8}
+          wrapperStyle={{ fontSize: 12, paddingBottom: 8, color: "var(--fg)" }}
+        />
+        {series.map((s) => (
+          <Line
+            key={s.key}
+            type="monotone"
+            dataKey={s.key}
+            name={s.name}
+            stroke={s.color}
+            strokeWidth={2}
+            dot={false}
+            connectNulls
+            activeDot={{ r: 4, stroke: "var(--inset)", strokeWidth: 2 }}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+/** Kıyaslama radarı: her eksen 0-100 arası (gruptaki en iyiye göre). */
+export function CompareRadar({
+  data,
+  series,
+  height = 300,
+}: {
+  data: Record<string, number | string>[];
+  series: Series[];
+  height?: number;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <RadarChart data={data} outerRadius="72%">
+        <PolarGrid stroke="var(--chart-grid)" />
+        <PolarAngleAxis dataKey="axis" tick={{ fill: "var(--muted)", fontSize: 11 }} />
+        <Tooltip content={(p) => <MultiTooltip {...p} format={(v) => String(Math.round(v))} />} />
+        {series.map((s) => (
+          <Radar key={s.key} dataKey={s.key} name={s.name} stroke={s.color} strokeWidth={2} fill={s.color} fillOpacity={0.08} />
+        ))}
+      </RadarChart>
+    </ResponsiveContainer>
   );
 }

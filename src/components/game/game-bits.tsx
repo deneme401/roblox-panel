@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { Gamepad2 } from "lucide-react";
 import { Card, InsetCard } from "@/components/ui/card";
-import { ChevronButton, ProgressBar } from "@/components/ui/primitives";
+import { ChevronButton, ProgressBar, StatBadge } from "@/components/ui/primitives";
 import { cn, formatCompact } from "@/lib/utils";
 import type { GameRow } from "@/lib/roblox/queries";
 
@@ -29,7 +29,7 @@ export function ageLabel(days: number) {
 
 /**
  * Referans 1'deki "hedef kartı": başlık satırı + içte beyaz kart, ilerleme çubuğu.
- * Çubuk = listedeki en yüksek oyuncu sayısına oranı.
+ * Çubuk = listedeki en yüksek oyuncu sayısına oranı. DB verisi varsa 24s büyüme rozeti ve yükseliş skoru.
  */
 export function GameGoalCard({
   game,
@@ -58,9 +58,16 @@ export function GameGoalCard({
           <span className="text-muted tabular-nums">{game.likeRatio != null ? `%${Math.round(game.likeRatio * 100)} beğeni` : "—"}</span>
         </div>
         <ProgressBar value={max ? game.playing / max : 0} color={color} />
-        <div className="flex justify-between text-xs">
+        <div className="flex items-center justify-between gap-2 text-xs">
           <span>{ageLabel(game.ageDays)}</span>
-          {rank != null && <span className="font-semibold tabular-nums">#{rank}</span>}
+          <span className="flex items-center gap-2">
+            {game.growth24h !== undefined && <StatBadge value={game.growth24h} />}
+            {game.riseScore != null ? (
+              <span className="font-semibold tabular-nums" title="Yükseliş skoru (0-100)">⚡{Math.round(game.riseScore)}</span>
+            ) : (
+              rank != null && <span className="font-semibold tabular-nums">#{rank}</span>
+            )}
+          </span>
         </div>
       </InsetCard>
     </Card>

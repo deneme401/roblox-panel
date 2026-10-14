@@ -1,5 +1,5 @@
 // Sayfaların okuduğu önbellekli (Cache Components "use cache") Roblox sorguları.
-// Supabase bağlanınca geçmiş/büyüme verisi buraya eklenecek (Faz 3).
+// Geçmiş/büyüme verisi DB'den gelir: lib/data/market.ts (bu dosya DB boşken yedek olarak kullanılır).
 import { cacheLife } from "next/cache";
 import { getGamePasses, getGames, getIcons, getSorts, getVotes, likeRatio, SORT_IDS, type SortId } from "./client";
 
@@ -21,6 +21,15 @@ export type GameRow = {
   updatedDaysAgo: number;
   /** Bu oyunun göründüğü listeler ve sırası (1'den başlar) */
   sorts: Partial<Record<SortId, number>>;
+  // Aşağıdakiler yalnızca DB'den (lib/data/market.ts) gelir; canlı API'de yoktur.
+  growth24h?: number | null;
+  growth7d?: number | null;
+  visits24h?: number | null;
+  riseScore?: number | null;
+  tracked?: boolean;
+  tags?: string[];
+  /** Son 48 saatin saatlik oyuncu sayıları */
+  spark?: number[];
 };
 
 const DAY = 86_400_000;

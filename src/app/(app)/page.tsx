@@ -1,38 +1,76 @@
+import { Suspense } from "react";
+import { connection } from "next/server";
 import Link from "next/link";
 import { ChevronRight, GitCompareArrows, Lightbulb, NotebookPen, TrendingUp } from "lucide-react";
 import { Topbar } from "@/components/layout/topbar";
 import { Card, CardHeader, HeroCard, InsetCard, SectionTitle } from "@/components/ui/card";
-import { ListRow, ProgressBar, RoundAction } from "@/components/ui/primitives";
+import { ListRow, ProgressBar, RoundAction, StatBadge } from "@/components/ui/primitives";
 import { GameGoalCard, GameIcon, ageLabel } from "@/components/game/game-bits";
-import { getDiscoverGames, type GameRow } from "@/lib/roblox/queries";
-import { formatCompact, formatNumber } from "@/lib/utils";
+import { HeroSparkline } from "@/components/charts/hero-sparkline";
+import { ActivityFeed } from "@/components/workspace/activity-feed";
+import { SignalItem } from "@/components/signals/signal-item";
+import { genreStats, getMarketRows, getNewEntrants, getPulse } from "@/lib/data/market";
+import { listSignals } from "@/lib/data/signals";
+import type { GameRow } from "@/lib/roblox/queries";
+import { formatCompact, formatNumber, formatPercent, timeAgo } from "@/lib/utils";
 
 function bySort(games: GameRow[], sort: keyof GameRow["sorts"]) {
   return games.filter((g) => g.sorts[sort] != null).sort((a, b) => a.sorts[sort]! - b.sorts[sort]!);
 }
 
-/** Yükselen listesindeki oyunları türe göre toplar: niş keşfi için. */
-function nicheBreakdown(games: GameRow[]) {
-  const map = new Map<string, { genre: string; count: number; playing: number }>();
-  for (const g of games) {
-    const key = g.genre ?? "Diğer";
-    const e = map.get(key) ?? { genre: key, count: 0, playing: 0 };
-    e.count++;
-    e.playing += g.playing;
-    map.set(key, e);
-  }
-  return [...map.values()].sort((a, b) => b.playing - a.playing);
+function Skeleton({ className }: { className?: string }) {
+  return <div className={`animate-pulse rounded-2xl bg-inset ${className ?? "h-40"}`} />;
+}
+
+async function NewEntrants() {
+  const rows = await getNewEntrants(6);
+  if (!rows.length)
+    return <p className="rounded-2xl bg-inset p-4 text-sm text-muted">Son 72 saatte Yükselen listesine yeni giren yok (ya da veri toplama yeni başladı).</p>;
+  return (
+    <div className="space-y-2">
+      {rows.map((g) => (
+        <ListRow
+          key={g.universeId}
+          href={`/games/${g.universeId}`}
+          icon={<GameIcon src={g.iconUrl} name={g.name} size={44} className="shadow-none" />}
+          title={g.name}
+          subtitle={`${g.genre ?? "—"} · ${timeAgo(g.firstSeenAt)} girdi`}
+          value={formatCompact(g.playing)}
+          valueSub={`en iyi #${g.bestRank}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+async function SignalFeed() {
+  const rows = await listSignals({ limit: 5 });
+  if (!rows.length) return <p className="rounded-2xl bg-inset p-4 text-sm text-muted">Sinyal yok. Günlük Apify toplaması çalışınca burada görünür.</p>;
+  return (
+    <div className="space-y-2">
+      {rows.map((s) => (
+        <SignalItem key={s.id} s={s} compact />
+      ))}
+    </div>
+  );
 }
 
 export default async function DashboardPage() {
-  const { games, fetchedAt } = await getDiscoverGames();
-  const rising = bySort(games, "up-and-coming");
+  await connection();
+  const [{ games, source, updatedAt }, pulse] = await Promise.all([getMarketRows(), getPulse()]);
+  const db = source === "db";
+  const rising = db
+    ? games.filter((g) => g.riseScore != null).sort((a, b) => (b.riseScore ?? 0) - (a.riseScore ?? 0))
+    : bySort(games, "up-and-coming");
+  const uac = games.filter((g) => g.sorts["up-and-coming"] != null);
   const topNow = bySort(games, "top-playing-now");
-  const totalPlaying = games.reduce((s, g) => s + g.playing, 0);
-  const niches = nicheBreakdown(rising);
-  const maxNiche = niches[0]?.playing ?? 1;
+  const total = pulse.total ?? games.reduce((s, g) => s + g.playing, 0);
+  const niches = genreStats(uac.length ? uac : games).slice(0, 8);
+  const maxNiche = Math.max(...niches.map((n) => n.playing), 1);
   const risingMax = Math.max(...rising.slice(0, 6).map((g) => g.playing), 1);
-  const time = new Date(fetchedAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Istanbul" });
+  const time = updatedAt
+    ? new Date(updatedAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Istanbul" })
+    : "—";
 
   return (
     <>
@@ -43,19 +81,28 @@ export default async function DashboardPage() {
           <div className="flex justify-center">
             <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium backdrop-blur">
               <span className="size-2 animate-pulse rounded-full bg-[#22c55e] dark:bg-white" />
-              Canlı · {time}
+              {db ? `Son ölçüm · ${time}` : `Canlı · ${time}`}
             </span>
           </div>
-          <p className="mt-5 text-center text-sm text-hero-muted">Keşif listelerinde anlık oyuncu</p>
-          <p className="mt-1 text-center text-4xl font-bold tracking-tight tabular-nums sm:text-5xl">{formatNumber(totalPlaying)}</p>
-          <p className="mt-2 text-center text-xs text-hero-muted">
-            {games.length} oyun · {rising.length} tanesi son 28 günde çıktı
-          </p>
-          <div className="mt-7 grid grid-cols-4 gap-2">
+          <p className="mt-5 text-center text-sm text-hero-muted">İzlenen {pulse.games || games.length} oyunda anlık oyuncu</p>
+          <p className="mt-1 text-center text-4xl font-bold tracking-tight tabular-nums sm:text-5xl">{formatNumber(total)}</p>
+          <div className="mt-2 flex justify-center">
+            {pulse.change24h != null ? (
+              <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold tabular-nums">{formatPercent(pulse.change24h)} · 24 saat</span>
+            ) : (
+              <span className="text-xs text-hero-muted">24 saatlik değişim için veri birikiyor ({pulse.hoursOfData} saat)</span>
+            )}
+          </div>
+          {pulse.series.length > 2 && (
+            <div className="mt-4 -mx-2">
+              <HeroSparkline data={pulse.series} />
+            </div>
+          )}
+          <div className="mt-6 grid grid-cols-4 gap-2">
             <RoundAction href="/trends" icon={<TrendingUp className="size-5" />} label="Trendler" />
             <RoundAction href="/compare" icon={<GitCompareArrows className="size-5" />} label="Kıyasla" />
-            <RoundAction href="/ideas" icon={<Lightbulb className="size-5" />} label="Yeni Fikir" />
-            <RoundAction href="/notes" icon={<NotebookPen className="size-5" />} label="Not" />
+            <RoundAction href="/ideas?new=1" icon={<Lightbulb className="size-5" />} label="Yeni Fikir" />
+            <RoundAction href="/notes?new=1" icon={<NotebookPen className="size-5" />} label="Not" />
           </div>
         </HeroCard>
 
@@ -63,22 +110,25 @@ export default async function DashboardPage() {
         <Card className="lg:col-span-7">
           <CardHeader
             title="Yükselen nişler"
-            subtitle="Son 28 günde çıkıp büyüyen oyunlar, türe göre toplam oyuncu"
+            subtitle="Son 28 günde çıkıp Yükselen listesine giren oyunlar, türe göre"
             action={
-              <Link href="/trends" className="text-xs font-semibold text-muted hover:text-fg">
-                Tümü
+              <Link href="/trends#nisler" className="text-xs font-semibold text-muted hover:text-fg">
+                Niş tablosu
               </Link>
             }
           />
           <div className="grid gap-2 sm:grid-cols-2">
-            {niches.slice(0, 8).map((n) => (
+            {niches.map((n) => (
               <InsetCard key={n.genre} className="space-y-2 p-3.5">
                 <div className="flex items-baseline justify-between gap-2 text-sm">
                   <span className="truncate font-semibold">{n.genre}</span>
-                  <span className="shrink-0 text-xs text-muted tabular-nums">{n.count} oyun</span>
+                  <span className="shrink-0 text-xs text-muted tabular-nums">{n.games} oyun</span>
                 </div>
                 <ProgressBar value={n.playing / maxNiche} color="accent" />
-                <div className="text-xs tabular-nums text-muted">{formatCompact(n.playing)} oyuncu</div>
+                <div className="flex items-center justify-between text-xs tabular-nums text-muted">
+                  <span>{formatCompact(n.playing)} oyuncu</span>
+                  {n.avgGrowth != null && <StatBadge value={n.avgGrowth} className="py-0.5" />}
+                </div>
               </InsetCard>
             ))}
           </div>
@@ -88,9 +138,9 @@ export default async function DashboardPage() {
       {/* Yükselenler */}
       <section className="mt-8">
         <SectionTitle
-          title="Yükselen oyunlar"
+          title={db ? "Bugün yükselenler (yükseliş skoru)" : "Yükselen oyunlar"}
           action={
-            <Link href="/trends?sort=up-and-coming" className="flex items-center gap-1 text-sm font-medium">
+            <Link href="/trends?order=rise" className="flex items-center gap-1 text-sm font-medium">
               Tümünü gör <ChevronRight className="size-4" />
             </Link>
           }
@@ -102,9 +152,38 @@ export default async function DashboardPage() {
         </div>
       </section>
 
+      <div className="mt-8 grid gap-5 lg:grid-cols-3">
+        <Card>
+          <CardHeader title="Yükselen listesine yeni girenler" subtitle="Son 72 saat · Roblox Up-and-Coming" />
+          <Suspense fallback={<Skeleton />}>
+            <NewEntrants />
+          </Suspense>
+        </Card>
+        <Card>
+          <CardHeader
+            title="Sosyal sinyaller"
+            subtitle="YouTube, TikTok, Reddit"
+            action={
+              <Link href="/signals" className="text-xs font-semibold text-muted hover:text-fg">
+                Tümü
+              </Link>
+            }
+          />
+          <Suspense fallback={<Skeleton />}>
+            <SignalFeed />
+          </Suspense>
+        </Card>
+        <Card>
+          <CardHeader title="Ekip aktivitesi" subtitle="Yusuf ve Mertcan" />
+          <Suspense fallback={<Skeleton />}>
+            <ActivityFeed limit={6} />
+          </Suspense>
+        </Card>
+      </div>
+
       <div className="mt-8 grid gap-5 lg:grid-cols-12">
         <Card className="lg:col-span-7">
-          <CardHeader title="Şu an en çok oynanan" subtitle="Roblox keşif listesi, anlık" />
+          <CardHeader title="Şu an en çok oynanan" subtitle="Roblox keşif listesi" />
           <div className="space-y-2">
             {topNow.slice(0, 8).map((g) => (
               <ListRow
@@ -114,7 +193,7 @@ export default async function DashboardPage() {
                 title={g.name}
                 subtitle={`${g.genre ?? "—"} · ${ageLabel(g.ageDays)}`}
                 value={formatCompact(g.playing)}
-                valueSub="oyuncu"
+                valueSub={g.growth24h != null ? formatPercent(g.growth24h) : "oyuncu"}
               />
             ))}
           </div>
@@ -126,7 +205,7 @@ export default async function DashboardPage() {
             {games
               .filter((g) => g.updatedDaysAgo <= 3)
               .sort((a, b) => b.playing - a.playing)
-              .slice(0, 6)
+              .slice(0, 7)
               .map((g) => (
                 <ListRow
                   key={g.universeId}
@@ -139,9 +218,6 @@ export default async function DashboardPage() {
                 />
               ))}
           </div>
-          <p className="mt-4 rounded-2xl bg-inset p-3 text-xs text-muted">
-            Büyüme yüzdeleri ve geçmiş grafikleri, saatlik veri toplama (Supabase) devreye girince burada görünecek.
-          </p>
         </Card>
       </div>
     </>

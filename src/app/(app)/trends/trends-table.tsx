@@ -3,12 +3,14 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowDownUp, Search } from "lucide-react";
+import { ArrowDownUp, Search, Star } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn, formatCompact } from "@/lib/utils";
 import { SORT_IDS, SORT_LABELS, type SortId } from "@/lib/roblox/client";
 import type { GameRow } from "@/lib/roblox/queries";
 import { GameIcon, ageLabel } from "@/components/game/game-bits";
+import { Sparkline } from "@/components/charts/charts";
+import { StatBadge } from "@/components/ui/primitives";
 
 const AGE_FILTERS = [
   { value: 0, label: "Tümü" },
@@ -17,7 +19,7 @@ const AGE_FILTERS = [
   { value: 365, label: "≤ 1 yıl" },
 ];
 
-type SortKey = "rank" | "playing" | "visits" | "likeRatio" | "ageDays" | "updatedDaysAgo";
+type SortKey = "rank" | "playing" | "visits" | "likeRatio" | "ageDays" | "updatedDaysAgo" | "growth24h" | "growth7d" | "riseScore";
 
 function Pill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -41,8 +43,11 @@ export function TrendsTable({ games }: { games: GameRow[] }) {
   const [genre, setGenre] = useState<string>("all");
   const [maxAge, setMaxAge] = useState(0);
   const [q, setQ] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>(initial === "all" ? "playing" : "rank");
-  const [asc, setAsc] = useState(initial !== "all");
+  const hasDb = games.some((g) => g.riseScore !== undefined);
+  const initialKey: SortKey = params.get("order") === "rise" && hasDb ? "riseScore" : initial === "all" ? "playing" : "rank";
+  const [sortKey, setSortKey] = useState<SortKey>(initialKey);
+  const [asc, setAsc] = useState(initialKey === "rank");
+  const [onlyTracked, setOnlyTracked] = useState(false);
 
   const genres = useMemo(() => {
     const counts = new Map<string, number>();
@@ -57,14 +62,16 @@ export function TrendsTable({ games }: { games: GameRow[] }) {
         (list === "all" || g.sorts[list] != null) &&
         (genre === "all" || g.genre === genre) &&
         (!maxAge || g.ageDays <= maxAge) &&
+        (!onlyTracked || g.tracked) &&
         (!needle || g.name.toLocaleLowerCase("tr").includes(needle) || g.creator.toLocaleLowerCase("tr").includes(needle)),
     );
     const val = (g: GameRow): number => {
-      if (sortKey === "rank") return list === "all" ? Math.min(...Object.values(g.sorts)) : (g.sorts[list] ?? 999);
-      return (g[sortKey] as number | null) ?? -1;
+      if (sortKey === "rank") return list === "all" ? Math.min(999, ...Object.values(g.sorts)) : (g.sorts[list] ?? 999);
+      return (g[sortKey] as number | null | undefined) ?? -Infinity;
     };
-    return filtered.sort((a, b) => (asc ? val(a) - val(b) : val(b) - val(a)));
-  }, [games, list, genre, maxAge, q, sortKey, asc]);
+    const cmp = (x: number, y: number) => (x === y ? 0 : x === -Infinity ? 1 : y === -Infinity ? -1 : asc ? x - y : y - x);
+    return filtered.sort((a, b) => cmp(val(a), val(b)));
+  }, [games, list, genre, maxAge, q, sortKey, asc, onlyTracked]);
 
   const header = (key: SortKey, label: string, className?: string) => (
     <th className={cn("px-3 py-2 font-medium", className)}>
@@ -136,17 +143,33 @@ export function TrendsTable({ games }: { games: GameRow[] }) {
             </button>
           ))}
         </div>
+        {hasDb && (
+          <button
+            type="button"
+            onClick={() => setOnlyTracked(!onlyTracked)}
+            className={cn(
+              "inline-flex h-11 items-center gap-1.5 rounded-full px-4 text-xs font-semibold shadow-card",
+              onlyTracked ? "bg-accent text-accent-fg" : "bg-surface text-muted dark:border dark:border-line",
+            )}
+          >
+            <Star className="size-3.5" /> Takiptekiler
+          </button>
+        )}
         <span className="ml-auto text-xs text-muted">{rows.length} oyun</span>
       </div>
 
       <Card className="overflow-hidden p-2">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
+          <table className="w-full min-w-[980px] text-sm">
             <thead>
               <tr className="text-left text-xs text-muted">
                 {header("rank", "#", "w-14")}
                 <th className="px-3 py-2 font-medium">Oyun</th>
                 {header("playing", "Oyuncu", "text-right")}
+                {hasDb && <th className="px-3 py-2 font-medium">48 saat</th>}
+                {hasDb && header("growth24h", "24s", "text-right")}
+                {hasDb && header("growth7d", "7g", "text-right")}
+                {hasDb && header("riseScore", "Skor", "text-right")}
                 {header("visits", "Ziyaret", "text-right")}
                 {header("likeRatio", "Beğeni", "text-right")}
                 {header("ageDays", "Yaş", "text-right")}
@@ -155,7 +178,8 @@ export function TrendsTable({ games }: { games: GameRow[] }) {
             </thead>
             <tbody>
               {rows.map((g) => {
-                const rank = list === "all" ? Math.min(...Object.values(g.sorts)) : g.sorts[list];
+                const ranks = Object.values(g.sorts);
+                const rank = list === "all" ? (ranks.length ? Math.min(...ranks) : "—") : g.sorts[list];
                 return (
                   <tr key={g.universeId} className="group">
                     <td className="rounded-l-2xl px-3 py-2 text-muted tabular-nums group-hover:bg-inset">{rank}</td>
@@ -163,7 +187,10 @@ export function TrendsTable({ games }: { games: GameRow[] }) {
                       <Link href={`/games/${g.universeId}`} className="flex items-center gap-3">
                         <GameIcon src={g.icon} name={g.name} size={40} className="rounded-xl shadow-none" />
                         <div className="min-w-0">
-                          <div className="max-w-[280px] truncate font-semibold">{g.name}</div>
+                          <div className="flex max-w-[280px] items-center gap-1 truncate font-semibold">
+                            {g.tracked && <Star className="size-3 shrink-0 fill-warn text-warn" />}
+                            <span className="truncate">{g.name}</span>
+                          </div>
                           <div className="max-w-[280px] truncate text-xs text-muted">
                             {g.genre ?? "—"} · {g.creator}
                           </div>
@@ -171,6 +198,26 @@ export function TrendsTable({ games }: { games: GameRow[] }) {
                       </Link>
                     </td>
                     <td className="px-3 py-2 text-right font-semibold tabular-nums group-hover:bg-inset">{formatCompact(g.playing)}</td>
+                    {hasDb && (
+                      <td className="px-3 py-2 group-hover:bg-inset">
+                        <Sparkline values={g.spark ?? []} width={88} height={28} />
+                      </td>
+                    )}
+                    {hasDb && (
+                      <td className="px-3 py-2 text-right group-hover:bg-inset">
+                        <StatBadge value={g.growth24h} />
+                      </td>
+                    )}
+                    {hasDb && (
+                      <td className="px-3 py-2 text-right group-hover:bg-inset">
+                        <StatBadge value={g.growth7d} />
+                      </td>
+                    )}
+                    {hasDb && (
+                      <td className="px-3 py-2 text-right font-semibold tabular-nums group-hover:bg-inset">
+                        {g.riseScore != null ? Math.round(g.riseScore) : "—"}
+                      </td>
+                    )}
                     <td className="px-3 py-2 text-right tabular-nums group-hover:bg-inset">{formatCompact(g.visits)}</td>
                     <td className="px-3 py-2 text-right tabular-nums group-hover:bg-inset">
                       {g.likeRatio != null ? `%${Math.round(g.likeRatio * 100)}` : "—"}

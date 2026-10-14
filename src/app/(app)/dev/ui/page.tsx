@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Rocket } from "lucide-react";
-import { Topbar } from "@/components/layout/topbar";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Card, CardHeader, HeroCard, InsetCard } from "@/components/ui/card";
 import { Button, ListRow, ProgressBar, RoundAction, StatBadge } from "@/components/ui/primitives";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -16,7 +16,7 @@ export default function UiShowcase() {
   const [range, setRange] = useState<"d" | "w" | "m">("m");
   return (
     <>
-      <Topbar title="Bileşen vitrini" />
+      <header className="mb-6 flex items-center justify-between"><h1 className="text-2xl font-bold tracking-tight">Bileşen vitrini</h1><ThemeToggle /></header>
       <div className="grid gap-5 lg:grid-cols-12">
         <HeroCard className="lg:col-span-5">
           <p className="text-center text-sm text-hero-muted">Hero kart</p>

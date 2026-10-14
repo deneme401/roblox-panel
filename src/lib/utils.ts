@@ -35,3 +35,14 @@ export function formatAge(iso: string | Date) {
   if (d < 365) return `${Math.floor(d / 30)} ay`;
   return `${(d / 365).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} yıl`;
 }
+
+/** "az önce", "12 dk önce", "3 sa önce", "2 gün önce" */
+export function timeAgo(iso: string | Date | null | undefined) {
+  if (!iso) return "—";
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "az önce";
+  if (s < 3600) return `${Math.floor(s / 60)} dk önce`;
+  if (s < 86400) return `${Math.floor(s / 3600)} sa önce`;
+  if (s < 86400 * 30) return `${Math.floor(s / 86400)} gün önce`;
+  return new Date(iso).toLocaleDateString("tr-TR", { day: "numeric", month: "short" });
+}
