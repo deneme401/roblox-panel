@@ -36,7 +36,7 @@ Ayarlar sayfasındaki "çalıştır" düğmeleri de aynı işi yapar.
 
 ## Vercel'e deploy (Faz 9)
 1. https://vercel.com → **Add New → Project → Import** `deneme401/roblox-panel` (Framework: Next.js, ayarlar varsayılan).
-2. **Environment Variables**: yukarıdaki tabloyu `.env.local`'daki değerlerle doldur. `APP_PASSWORD` için ikinizin bileceği bir şifre belirleyin.
+2. **Environment Variables**: proje kökündeki `.env.vercel` (git dışı, `.env.local`'dan üretildi) içeriğinin tamamı Vercel'in env ekranına yapıştırılabilir. `DATABASE_URL_DIRECT` ve `ROBLOX_RELAY` canlıda **yok**. yukarıdaki tabloyu `.env.local`'daki değerlerle doldur. `APP_PASSWORD` için ikinizin bileceği bir şifre belirleyin.
 3. Deploy. `vercel.json` fonksiyonları **syd1** (Sidney) bölgesine sabitler; veritabanı ap-southeast-2'de olduğundan sorgular hızlı olur.
 4. Zamanlamayı kur (bir kez, lokalden):
    ```bash
