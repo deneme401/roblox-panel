@@ -9,7 +9,7 @@ import { getSettingsData } from "@/lib/data/settings";
 import { geminiModels, hasGemini } from "@/lib/ai/gemini";
 import { MEMBERS, memberName } from "@/lib/auth/members";
 import { formatCompact, formatNumber, timeAgo } from "@/lib/utils";
-import { RunJobButton, UntrackButton, VerifyModelsButton } from "./settings-client";
+import { AutoTrackForm, RunJobButton, UntrackButton, VerifyModelsButton } from "./settings-client";
 
 const JOB_INFO: Record<string, { label: string; schedule: string }> = {
   "collect-hourly": { label: "Listeler + snapshot", schedule: "her saat :05" },
@@ -97,19 +97,22 @@ async function Settings() {
         </Card>
 
         <Card>
-          <CardHeader title="Takip listesi" subtitle="Listelerden düşse bile saatlik izlenen oyunlar" />
+          <CardHeader title={`Takip listesi (${d.tracked.length})`} subtitle="Listelerden düşse bile saatlik izlenen oyunlar · ☆ otomatik, ★ elle" />
+          <div className="mb-4">
+            <AutoTrackForm initial={d.autoTrack} />
+          </div>
           <AddGameForm navigate={false} className="mb-4 bg-inset shadow-none" />
           {d.tracked.length === 0 ? (
             <p className="text-sm text-muted">Takipte oyun yok. Oyun detay sayfasındaki ★ ile ya da yukarıdan link ile ekle.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="max-h-[480px] space-y-2 overflow-y-auto pr-1">
               {d.tracked.map((g) => (
                 <InsetCard key={g.universeId} className="flex items-center gap-3 p-3">
                   <GameIcon src={g.iconUrl} name={g.name} size={36} className="rounded-xl shadow-none" />
                   <a href={`/games/${g.universeId}`} className="min-w-0 flex-1 truncate text-sm font-semibold hover:underline">
                     {g.name}
                   </a>
-                  <span className="text-xs text-muted">{memberName(g.trackedBy)}</span>
+                  <span className="text-xs text-muted">{g.trackedAuto ? "☆ otomatik" : `★ ${memberName(g.trackedBy)}`}</span>
                   <span className="w-16 text-right text-sm tabular-nums">{formatCompact(g.playing)}</span>
                   <UntrackButton universeId={g.universeId} />
                 </InsetCard>

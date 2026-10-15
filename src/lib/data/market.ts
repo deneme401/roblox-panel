@@ -26,6 +26,9 @@ type MetricRow = {
   visits24h: number | null;
   riseScore: number | null;
   aiTags: string[];
+  trackedAuto: boolean;
+  firstSeenAt: Date;
+  isNew: boolean;
 };
 
 function toGameRow(m: MetricRow, sorts: Partial<Record<SortId, number>>, spark: number[]): GameRow {
@@ -53,6 +56,9 @@ function toGameRow(m: MetricRow, sorts: Partial<Record<SortId, number>>, spark: 
     visits24h: m.visits24h,
     riseScore: m.riseScore,
     tracked: m.tracked,
+    trackedAuto: m.trackedAuto,
+    firstSeenAt: new Date(m.firstSeenAt).toISOString(),
+    isNew: m.isNew,
     tags: m.aiTags,
     spark,
   };
@@ -80,7 +86,10 @@ async function marketRowsCached(): Promise<{ games: GameRow[]; source: "db" | "l
     sql<MetricRow[]>`
       select m.universe_id, m.place_id, m.name, m.genre, m.subgenre, m.icon_url, m.creator_name, m.tracked,
         m.created_at_rbx, m.updated_at_rbx, m.playing, m.visits, m.favorites, m.like_ratio,
-        m.growth_24h, m.growth_7d, m.visits_24h, m.rise_score, g.ai_tags
+        m.growth_24h, m.growth_7d, m.visits_24h, m.rise_score, g.ai_tags, g.tracked_auto, g.first_seen_at,
+        -- yeni: son 72 saatte ilk kez görüldü; ilk toplamadaki toplu giriş (ilk 2 saat) sayılmaz
+        (g.first_seen_at > (select min(first_seen_at) from games) + interval '2 hours'
+          and g.first_seen_at > (select max(last_seen_in_sort_at) from games) - interval '72 hours') as is_new
       from game_metrics m join games g using (universe_id)
       where m.tracked or g.last_seen_in_sort_at > (select max(last_seen_in_sort_at) from games) - interval '2 days'`,
     sql<{ universeId: number; sortId: SortId; rank: number; ts: Date }[]>`

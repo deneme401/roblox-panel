@@ -1,7 +1,8 @@
 // Toplayıcı işler. Cron route'ları (src/app/api/cron/*) ve Ayarlar sayfasındaki "şimdi çalıştır" bunları çağırır.
 // Akış ve zamanlama: docs/02-mimari.md
 import { sql } from "@/lib/db";
-import { getGamePasses, getGames, getIcons, getSorts, getVotes, SORT_IDS, type RobloxGame } from "@/lib/roblox/client";
+import { getGamePasses, getGames, getIcons, getSorts, getVotes, SORT_IDS, type RobloxGame, type SortId } from "@/lib/roblox/client";
+import { getAutoTrack } from "@/lib/data/app-settings";
 
 export type JobResult = { rows: number; message?: string };
 export type JobOutcome = JobResult & { job: string; ok: boolean };
@@ -84,6 +85,7 @@ function hourStart(d = new Date()) {
 /** Saatlik: keşif listeleri + listelerdeki/takipteki oyunların anlık değerleri. */
 export async function collectHourly(): Promise<JobResult> {
   const ts = hourStart();
+  const [{ started }] = await sql<{ started: Date }[]>`select now() as started`; // DB saatiyle (first_seen_at default'u)
   const sorts = await getSorts();
   const appearances: { ts: Date; sort_id: string; universe_id: number; rank: number }[] = [];
   const basics = new Map<number, { universe_id: number; place_id: number; name: string; last_seen_in_sort_at: Date }>();
@@ -120,7 +122,25 @@ export async function collectHourly(): Promise<JobResult> {
     where tracked or last_seen_in_sort_at > now() - interval '3 days'
        or universe_id in (select universe_id from idea_games)`;
   const snaps = await storeGames(targets.map((t) => t.universeId), ts);
-  return { rows: snaps, message: `${basics.size} listede oyun, ${snaps} snapshot` };
+
+  // Bu çalışmada ilk kez görülen oyunlar
+  const [{ fresh }] = await sql<{ fresh: number }[]>`
+    select count(*)::int as fresh from games where first_seen_at >= ${started}`;
+
+  // Otomatik takip: seçili listelerde olup takipte olmayan oyunlar takibe alınır (Ayarlar)
+  let autoTracked = 0;
+  const auto = await getAutoTrack();
+  const autoIds = [...new Set(appearances.filter((a) => auto.sorts.includes(a.sort_id as SortId)).map((a) => a.universe_id))];
+  if (auto.enabled && autoIds.length) {
+    const res = await sql`
+      update games set tracked = true, tracked_auto = true, tracked_by = null
+      where universe_id in ${sql(autoIds)} and not tracked`;
+    autoTracked = res.count;
+  }
+
+  const parts = [`${basics.size} listede oyun`, `${snaps} snapshot`, `${fresh} yeni oyun`];
+  if (autoTracked) parts.push(`${autoTracked} oyun otomatik takibe alındı`);
+  return { rows: snaps, message: parts.join(", ") };
 }
 
 async function pool<T>(items: T[], size: number, fn: (t: T) => Promise<void>) {

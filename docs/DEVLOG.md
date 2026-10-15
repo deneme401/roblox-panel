@@ -4,6 +4,20 @@ En yeni giriş en üstte.
 
 ---
 
+## 2026-10-15 — Oturum 2 (devam 3): Tümünü güncelle, yeni oyunlar, toplu ve otomatik takip
+
+**İstek:** "Bütün verileri güncelle" düğmesi; yeni oyunları görebilmek; yeni trend oyunların hepsini takip edebilmek.
+
+**Yapılanlar**
+- `0006_auto_track.sql`: `app_settings` (key → jsonb, RLS kapalı kapı) + `games.tracked_auto`. Varsayılan `auto_track = {enabled:false, sorts:[top-trending, up-and-coming]}`.
+- **Tümünü güncelle** (`components/layout/refresh-all.tsx`, her sayfanın üst barında): saatlik işi hemen çalıştırır (listeler + tüm oyunların snapshot'ı + yeni oyunlar + otomatik takip), sonucu bildirimde gösterir.
+- `collectHourly`: mesajda "N yeni oyun" (bu çalışmada `first_seen_at` alan oyunlar, DB saatiyle); otomatik takip açıksa seçili listelerdeki takipsiz oyunlar `tracked=true, tracked_auto=true`.
+- **Trendler:** "Yeni (N)" filtresi (`?new=1` ile de açılır) ve satırda YENİ rozeti: son 72 saatte ilk kez görülen, ilk toplamadaki toplu giriş hariç. Satır seçimi (onay kutuları, başlıkta tümünü seç), "Seçilenleri takibe al / Takipten çıkar", "Görünenlerin hepsini takibe al (N)" (filtreyle birlikte: ör. Yükselen listesi + Yeni → hepsini takibe al). Otomatik takiptekiler içi boş ☆.
+- `setTrackedMany` (en fazla 1000), `saveAutoTrackAction` Server Action'ları; elle takip `tracked_auto=false` yapar.
+- **Ayarlar → Takip listesi:** otomatik takip anahtarı + hangi listeler; liste sayılı, oyuncuya göre sıralı, kaydırılabilir, "☆ otomatik / ★ kişi".
+
+---
+
 ## 2026-10-15 — Oturum 2 (devam 2): Gemini model zinciri güncellendi
 
 - Kullanıcı Gemini anahtarını ekledi; tüm modeller 404 verdi ("no longer available to new users").

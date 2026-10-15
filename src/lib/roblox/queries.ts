@@ -27,6 +27,11 @@ export type GameRow = {
   visits24h?: number | null;
   riseScore?: number | null;
   tracked?: boolean;
+  /** Otomatik takiple mi takibe alındı */
+  trackedAuto?: boolean;
+  /** Panelin bu oyunu ilk gördüğü an ve son 72 saatte yeni keşfedildi mi (ilk toplama hariç) */
+  firstSeenAt?: string | null;
+  isNew?: boolean;
   tags?: string[];
   /** Son 48 saatin saatlik oyuncu sayıları */
   spark?: number[];

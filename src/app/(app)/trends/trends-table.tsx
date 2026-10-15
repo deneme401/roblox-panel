@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowDownUp, Search, Star } from "lucide-react";
+import { ArrowDownUp, Search, Sparkles, Star, StarOff } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn, formatCompact } from "@/lib/utils";
 import { SORT_IDS, SORT_LABELS, type SortId } from "@/lib/roblox/sorts";
@@ -11,6 +11,8 @@ import type { GameRow } from "@/lib/roblox/queries";
 import { GameIcon, ageLabel } from "@/components/game/game-bits";
 import { Sparkline } from "@/components/charts/charts";
 import { StatBadge } from "@/components/ui/primitives";
+import { useAction, toast } from "@/components/ui/toast";
+import { setTrackedMany } from "@/lib/actions";
 
 const AGE_FILTERS = [
   { value: 0, label: "Tümü" },
@@ -48,6 +50,10 @@ export function TrendsTable({ games }: { games: GameRow[] }) {
   const [sortKey, setSortKey] = useState<SortKey>(initialKey);
   const [asc, setAsc] = useState(initialKey === "rank");
   const [onlyTracked, setOnlyTracked] = useState(false);
+  const [onlyNew, setOnlyNew] = useState(params.get("new") === "1");
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const bulk = useAction();
+  const newCount = useMemo(() => games.filter((g) => g.isNew).length, [games]);
 
   const genres = useMemo(() => {
     const counts = new Map<string, number>();
@@ -63,6 +69,7 @@ export function TrendsTable({ games }: { games: GameRow[] }) {
         (genre === "all" || g.genre === genre) &&
         (!maxAge || g.ageDays <= maxAge) &&
         (!onlyTracked || g.tracked) &&
+        (!onlyNew || g.isNew) &&
         (!needle || g.name.toLocaleLowerCase("tr").includes(needle) || g.creator.toLocaleLowerCase("tr").includes(needle)),
     );
     const val = (g: GameRow): number => {
@@ -71,7 +78,26 @@ export function TrendsTable({ games }: { games: GameRow[] }) {
     };
     const cmp = (x: number, y: number) => (x === y ? 0 : x === -Infinity ? 1 : y === -Infinity ? -1 : asc ? x - y : y - x);
     return filtered.sort((a, b) => cmp(val(a), val(b)));
-  }, [games, list, genre, maxAge, q, sortKey, asc, onlyTracked]);
+  }, [games, list, genre, maxAge, q, sortKey, asc, onlyTracked, onlyNew]);
+
+  const visibleIds = rows.map((g) => g.universeId);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+  const untrackedVisible = rows.filter((g) => !g.tracked).map((g) => g.universeId);
+  const toggle = (id: number) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const track = (ids: number[], tracked: boolean) =>
+    bulk.run(() => setTrackedMany(ids, tracked), {
+      topic: "market",
+      onDone: (d) => {
+        toast("ok", tracked ? `${d?.count ?? 0} oyun takibe alındı` : `${d?.count ?? 0} oyun takipten çıkarıldı`);
+        setSelected(new Set());
+      },
+    });
 
   const header = (key: SortKey, label: string, className?: string) => (
     <th className={cn("px-3 py-2 font-medium", className)}>
@@ -155,14 +181,76 @@ export function TrendsTable({ games }: { games: GameRow[] }) {
             <Star className="size-3.5" /> Takiptekiler
           </button>
         )}
+        {hasDb && (
+          <button
+            type="button"
+            onClick={() => setOnlyNew(!onlyNew)}
+            title="Son 72 saatte listelerde ilk kez görülen oyunlar"
+            className={cn(
+              "inline-flex h-11 items-center gap-1.5 rounded-full px-4 text-xs font-semibold shadow-card",
+              onlyNew ? "bg-accent text-accent-fg" : "bg-surface text-muted dark:border dark:border-line",
+            )}
+          >
+            <Sparkles className="size-3.5" /> Yeni ({newCount})
+          </button>
+        )}
         <span className="ml-auto text-xs text-muted">{rows.length} oyun</span>
       </div>
+
+      {hasDb && (
+        <div className="flex flex-wrap items-center gap-2 rounded-full bg-surface px-3 py-2 text-sm shadow-card dark:border dark:border-line">
+          <span className="px-1 text-xs text-muted">{selected.size ? `${selected.size} oyun seçili` : "Satırları seçerek toplu işlem yap"}</span>
+          {selected.size > 0 && (
+            <>
+              <button
+                type="button"
+                disabled={bulk.pending}
+                onClick={() => track([...selected], true)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full bg-accent px-3 text-xs font-semibold text-accent-fg disabled:opacity-50"
+              >
+                <Star className="size-3.5" /> Seçilenleri takibe al
+              </button>
+              <button
+                type="button"
+                disabled={bulk.pending}
+                onClick={() => track([...selected], false)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full bg-inset px-3 text-xs font-semibold disabled:opacity-50"
+              >
+                <StarOff className="size-3.5" /> Takipten çıkar
+              </button>
+              <button type="button" onClick={() => setSelected(new Set())} className="text-xs text-muted hover:text-fg">
+                Seçimi temizle
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            disabled={bulk.pending || !untrackedVisible.length}
+            onClick={() => track(untrackedVisible, true)}
+            title="Şu anki filtreyle görünen ve takipte olmayan tüm oyunları takibe al"
+            className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-full bg-inset px-3 text-xs font-semibold disabled:opacity-50"
+          >
+            <Star className="size-3.5" /> Görünenlerin hepsini takibe al ({untrackedVisible.length})
+          </button>
+        </div>
+      )}
 
       <Card className="overflow-hidden p-2">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[980px] text-sm">
             <thead>
               <tr className="text-left text-xs text-muted">
+                {hasDb && (
+                  <th className="w-8 px-2 py-2">
+                    <input
+                      type="checkbox"
+                      aria-label="Görünenlerin hepsini seç"
+                      checked={allVisibleSelected}
+                      onChange={() => setSelected(allVisibleSelected ? new Set() : new Set(visibleIds))}
+                      className="size-4 accent-[var(--accent)]"
+                    />
+                  </th>
+                )}
                 {header("rank", "#", "w-14")}
                 <th className="px-3 py-2 font-medium">Oyun</th>
                 {header("playing", "Oyuncu", "text-right")}
@@ -181,15 +269,34 @@ export function TrendsTable({ games }: { games: GameRow[] }) {
                 const ranks = Object.values(g.sorts);
                 const rank = list === "all" ? (ranks.length ? Math.min(...ranks) : "—") : g.sorts[list];
                 return (
-                  <tr key={g.universeId} className="group">
-                    <td className="rounded-l-2xl px-3 py-2 text-muted tabular-nums group-hover:bg-inset">{rank}</td>
+                  <tr key={g.universeId} className={cn("group", selected.has(g.universeId) && "[&>td]:bg-inset")}>
+                    {hasDb && (
+                      <td className="rounded-l-2xl px-2 py-2 group-hover:bg-inset">
+                        <input
+                          type="checkbox"
+                          aria-label={`${g.name} seç`}
+                          checked={selected.has(g.universeId)}
+                          onChange={() => toggle(g.universeId)}
+                          className="size-4 accent-[var(--accent)]"
+                        />
+                      </td>
+                    )}
+                    <td className={cn("px-3 py-2 text-muted tabular-nums group-hover:bg-inset", !hasDb && "rounded-l-2xl")}>{rank}</td>
                     <td className="px-3 py-2 group-hover:bg-inset">
                       <Link href={`/games/${g.universeId}`} className="flex items-center gap-3">
                         <GameIcon src={g.icon} name={g.name} size={40} className="rounded-xl shadow-none" />
                         <div className="min-w-0">
                           <div className="flex max-w-[280px] items-center gap-1 truncate font-semibold">
-                            {g.tracked && <Star className="size-3 shrink-0 fill-warn text-warn" />}
+                            {g.tracked && (
+                              <Star
+                                className={cn("size-3 shrink-0", g.trackedAuto ? "text-warn" : "fill-warn text-warn")}
+                                aria-label={g.trackedAuto ? "Otomatik takipte" : "Takipte"}
+                              />
+                            )}
                             <span className="truncate">{g.name}</span>
+                            {g.isNew && (
+                              <span className="shrink-0 rounded-full bg-pos-soft px-1.5 py-0.5 text-[10px] font-bold text-pos">YENİ</span>
+                            )}
                           </div>
                           <div className="max-w-[280px] truncate text-xs text-muted">
                             {g.genre ?? "—"} · {g.creator}

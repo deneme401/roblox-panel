@@ -10,6 +10,8 @@ import { autoScores, getIdea, type IdeaStatus } from "@/lib/data/workspace";
 import { placeToUniverse } from "@/lib/roblox/client";
 import { storeGames, storePasses } from "@/lib/collect/jobs";
 import { runScheduledJob, type ScheduledJob } from "@/lib/collect/schedule";
+import { saveAutoTrack, type AutoTrack } from "@/lib/data/app-settings";
+import { SORT_IDS } from "@/lib/roblox/sorts";
 import { analyzeGame, evaluateIdea } from "@/lib/ai/tasks";
 import { listAvailableModels } from "@/lib/ai/gemini";
 
@@ -67,7 +69,7 @@ export async function setTracked(universeId: number, tracked: boolean): Promise<
       await storeGames([universeId], now);
     }
     const [g] = await sql<{ name: string }[]>`
-      update games set tracked = ${tracked}, tracked_by = ${tracked ? me.id : null}
+      update games set tracked = ${tracked}, tracked_by = ${tracked ? me.id : null}, tracked_auto = false
       where universe_id = ${universeId} returning name`;
     if (tracked) await storePasses(universeId).catch(() => 0);
     await log(me.id, tracked ? "takibe aldı" : "takipten çıkardı", "game", universeId, g?.name ?? null);
@@ -92,6 +94,38 @@ export async function refreshGame(universeId: number): Promise<ActionResult<{ pl
     updateTag(MARKET_TAG);
     refresh();
     return { ok: true, data: { playing: r?.playing ?? null } };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Birden çok oyunu takibe al / takipten çıkar (Trendler'deki toplu seçim). */
+export async function setTrackedMany(universeIds: number[], tracked: boolean): Promise<ActionResult<{ count: number }>> {
+  try {
+    const me = await requireMember();
+    const ids = [...new Set(universeIds.filter((id) => Number.isSafeInteger(id)))].slice(0, 1000);
+    if (!ids.length) return { ok: true, data: { count: 0 } };
+    const res = await sql`
+      update games set tracked = ${tracked}, tracked_by = ${tracked ? me.id : null}, tracked_auto = false
+      where universe_id in ${sql(ids)} and tracked is distinct from ${tracked}`;
+    await log(me.id, tracked ? "toplu takibe aldı" : "toplu takipten çıkardı", null, null, `${res.count} oyun`);
+    updateTag(MARKET_TAG);
+    refresh();
+    return { ok: true, data: { count: res.count } };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Otomatik takip ayarı: seçili listelere giren her oyun saatlik toplamada takibe alınır. */
+export async function saveAutoTrackAction(value: AutoTrack): Promise<ActionResult> {
+  try {
+    const me = await requireMember();
+    const sorts = value.sorts.filter((s) => (SORT_IDS as readonly string[]).includes(s));
+    await saveAutoTrack({ enabled: Boolean(value.enabled), sorts }, me.id);
+    await log(me.id, value.enabled ? "otomatik takibi açtı" : "otomatik takibi kapattı", null, null, sorts.join(", "));
+    refresh();
+    return { ok: true };
   } catch (e) {
     return fail(e);
   }

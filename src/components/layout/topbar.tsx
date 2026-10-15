@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { getMember } from "@/lib/auth/session";
 import { ThemeToggle } from "./theme-toggle";
 import { TeamPresence } from "./team-presence";
+import { RefreshAllButton } from "./refresh-all";
 
 async function MemberName() {
   const m = await getMember();
@@ -34,6 +35,7 @@ export function Topbar({ title, subtitle, actions }: { title?: string; subtitle?
       </div>
       <div className="flex items-center gap-2">
         {actions}
+        <RefreshAllButton />
         <ThemeToggle />
         <Suspense fallback={<div className="h-9 w-24" />}>
           <Team />

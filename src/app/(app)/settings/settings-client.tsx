@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { Play, ShieldCheck, X } from "lucide-react";
-import { runJobNow, setTracked, verifyModels } from "@/lib/actions";
+import { runJobNow, saveAutoTrackAction, setTracked, verifyModels } from "@/lib/actions";
+import type { AutoTrack } from "@/lib/data/app-settings";
+import { SORT_IDS, SORT_LABELS } from "@/lib/roblox/sorts";
 import { toast, useAction } from "@/components/ui/toast";
 import type { ScheduledJob } from "@/lib/collect/schedule";
 import { cn } from "@/lib/utils";
@@ -55,6 +57,51 @@ export function VerifyModelsButton({ configured }: { configured: string[] }) {
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+export function AutoTrackForm({ initial }: { initial: AutoTrack }) {
+  const [value, setValue] = useState<AutoTrack>(initial);
+  const { pending, run } = useAction();
+  const save = (next: AutoTrack) => {
+    setValue(next);
+    run(() => saveAutoTrackAction(next), { success: next.enabled ? "Otomatik takip kaydedildi" : "Otomatik takip kapalı" });
+  };
+  return (
+    <div className="space-y-3">
+      <label className="flex items-center justify-between gap-3 rounded-2xl bg-inset p-3 text-sm">
+        <span>
+          <span className="font-semibold">Yeni trend oyunlarını otomatik takibe al</span>
+          <span className="block text-xs text-muted">Her saatlik güncellemede seçili listelerdeki tüm oyunlar takibe alınır; listeden düşseler de izlenmeye devam eder.</span>
+        </span>
+        <input
+          type="checkbox"
+          disabled={pending}
+          checked={value.enabled}
+          onChange={(e) => save({ ...value, enabled: e.target.checked })}
+          className="size-5 shrink-0 accent-[var(--accent)]"
+        />
+      </label>
+      <div className="flex flex-wrap gap-2">
+        {SORT_IDS.map((s) => {
+          const on = value.sorts.includes(s);
+          return (
+            <button
+              key={s}
+              type="button"
+              disabled={pending}
+              onClick={() => save({ ...value, sorts: on ? value.sorts.filter((x) => x !== s) : [...value.sorts, s] })}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50",
+                on ? "bg-accent text-accent-fg" : "bg-inset text-muted",
+              )}
+            >
+              {SORT_LABELS[s]}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

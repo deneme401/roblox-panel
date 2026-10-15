@@ -15,7 +15,7 @@
 ### Oyun verisi
 | Tablo | Alanlar | Not |
 |---|---|---|
-| `games` | `universe_id` PK, `place_id`, `name`, `description`, `creator_name/type`, `genre`, `subgenre`, `max_players`, `created_at_rbx`, `updated_at_rbx`, `icon_url`, `ai_tags[]`, `ai_analysis jsonb`, `ai_model`, `ai_analyzed_at`, `tracked`, `tracked_by`, `first_seen_at`, `last_seen_in_sort_at`, `last_snapshot_at` | `tracked` = elle takip |
+| `games` | `universe_id` PK, `place_id`, `name`, `description`, `creator_name/type`, `genre`, `subgenre`, `max_players`, `created_at_rbx`, `updated_at_rbx`, `icon_url`, `ai_tags[]`, `ai_analysis jsonb`, `ai_model`, `ai_analyzed_at`, `tracked`, `tracked_by`, `tracked_auto` (otomatik takip, 0006), `first_seen_at`, `last_seen_in_sort_at`, `last_snapshot_at` | `tracked` = elle takip |
 | `game_snapshots` | PK (`universe_id`, `ts`), `playing`, `visits`, `favorites`, `up_votes`, `down_votes` | Saatlik (ts saat başına yuvarlanır). **30 gün** |
 | `game_daily` | PK (`universe_id`, `day`), `avg_playing`, `peak_playing`, `visits`, `favorites`, oylar, `samples` | Kalıcı günlük özet (UTC gün) |
 | `sort_appearances` | PK (`sort_id`, `universe_id`, `ts`), `rank` | Saatlik liste sırası, 30 gün |
@@ -36,6 +36,7 @@
 | `comments` | `entity_type`, `entity_id`, `body`, `author` |
 | `activity` | `actor`, `verb`, `entity_type`, `entity_id`, `label`, `meta` |
 | `compare_sets` | `name`, `universe_ids bigint[]`, `created_by` |
+| `app_settings` | `key` PK, `value jsonb`, `updated_by`, `updated_at` — ör. `auto_track` {enabled, sorts[]} (0006) |
 
 ## `game_metrics` view (0002 → 0005_metrics_relative.sql)
 Her oyunun **en son** snapshot'ı için; büyüme pencereleri `now()`'a değil o snapshot'ın zamanına göre (veri eskise de boşalmaz, ADR #13):
