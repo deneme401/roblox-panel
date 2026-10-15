@@ -17,6 +17,8 @@ En yeni giriş en üstte.
 - Oyun sayfasına **Güncelle** düğmesi (`refreshGame` Server Action): o oyunun değerlerini anında çekip bu saatin snapshot'ına yazar; yanında "son ölçüm x dk önce".
 - Saatlik iş relay ile lokal çalıştırıldı: 284 listede oyun, 385 snapshot, ~36 sn. Blox Fruits 155.252 → 211.084 oyuncu.
 
+- Masaüstü kısayolları: `RoRadar Baslat` / `RoRadar Kapat` → `scripts/baslat.cmd`, `scripts/kapat.cmd` (bkz. 07).
+
 **Not:** Otomatik saatlik toplama hâlâ Vercel deploy + `setup-cron.mjs` bekliyor. O zamana kadar Ayarlar → "Saatlik çalıştır" veya `npx tsx --env-file=.env.local scripts/run-job.mts hourly` ile elle.
 
 ---

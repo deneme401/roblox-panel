@@ -7,6 +7,8 @@ cp .env.example .env.local    # değerleri doldur
 node scripts/migrate.mjs      # supabase/migrations/*.sql'i uygular (idempotent)
 npm run dev                   # http://localhost:3000
 ```
+**Masaüstü kısayolları (Windows):** `RoRadar Baslat` → `scripts/baslat.cmd` (build yoksa derler, sunucuyu küçültülmüş pencerede `next start -p 3124` ile açar, tarayıcıyı açar; zaten açıksa sadece tarayıcıyı açar). `RoRadar Kapat` → `scripts/kapat.cmd` (3124 ve 3123 portlarındaki sunucuları kapatır). Kısayollar masaüstünde; kod değişince önce `npx next build` gerekir.
+
 Gereksinim: Node 20.9+ (geliştirme makinesinde Node 24.14).
 
 **Toplayıcıları elle çalıştırma** (deploy olmadan da veri doldurur):
