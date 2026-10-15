@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { sql } from "@/lib/db";
 import type { GameAnalysis } from "@/lib/ai/tasks";
 import { MARKET_TAG } from "./market";
+import { fillAges, type GameDetail } from "@/lib/roblox/queries";
 
 export type GameHistory = {
   inDb: boolean;
@@ -79,4 +80,68 @@ export async function getGameIdeas(universeId: number) {
   await connection();
   return sql<{ id: string; title: string; status: string }[]>`
     select i.id, i.title, i.status from idea_games ig join ideas i on i.id = ig.idea_id where ig.universe_id = ${universeId}`;
+}
+
+/** Oyunun temel bilgisi ve son ölçümü (DB). Sayfa canlı Roblox API'sine bağımlı olmasın diye önce bu okunur. */
+export async function getGameBase(universeId: number): Promise<GameDetail | null> {
+  const g = await gameBaseCached(universeId);
+  return g ? fillAges([g])[0] : null;
+}
+
+async function gameBaseCached(universeId: number): Promise<GameDetail | null> {
+  "use cache";
+  cacheLife({ stale: 60, revalidate: 300, expire: 3600 });
+  cacheTag(MARKET_TAG, `game-${universeId}`);
+
+  const [r] = await sql<
+    {
+      universeId: number;
+      placeId: number | null;
+      name: string;
+      description: string | null;
+      creatorName: string | null;
+      genre: string | null;
+      subgenre: string | null;
+      maxPlayers: number | null;
+      iconUrl: string | null;
+      createdAtRbx: Date | null;
+      updatedAtRbx: Date | null;
+      playing: number | null;
+      visits: number | null;
+      favorites: number | null;
+      upVotes: number | null;
+      downVotes: number | null;
+      likeRatio: number | null;
+    }[]
+  >`
+    select g.universe_id, g.place_id, g.name, g.description, g.creator_name, g.genre, g.subgenre, g.max_players,
+      g.icon_url, g.created_at_rbx, g.updated_at_rbx, m.playing, m.visits, m.favorites, m.up_votes, m.down_votes, m.like_ratio
+    from games g left join game_metrics m using (universe_id)
+    where g.universe_id = ${universeId}`;
+  if (!r) return null;
+  const created = new Date(r.createdAtRbx ?? r.updatedAtRbx ?? 0).toISOString();
+  return {
+    universeId: r.universeId,
+    placeId: r.placeId ?? 0,
+    name: r.name,
+    description: r.description,
+    icon: r.iconUrl,
+    iconLarge: null,
+    playing: r.playing ?? 0,
+    visits: r.visits ?? 0,
+    favorites: r.favorites ?? 0,
+    maxPlayers: r.maxPlayers ?? 0,
+    upVotes: r.upVotes ?? 0,
+    downVotes: r.downVotes ?? 0,
+    likeRatio: r.likeRatio,
+    genre: r.genre,
+    subgenre: r.subgenre,
+    creator: r.creatorName ?? "—",
+    createdAt: created,
+    updatedAt: r.updatedAtRbx ? new Date(r.updatedAtRbx).toISOString() : created,
+    ageDays: 0,
+    updatedDaysAgo: 0,
+    sorts: {},
+    passes: [],
+  };
 }

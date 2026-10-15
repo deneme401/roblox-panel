@@ -1,7 +1,7 @@
 // Kıyaslama verisi: 2-5 oyunun metrikleri, geçmişi ve monetizasyonu.
 import { cacheLife, cacheTag } from "next/cache";
 import { sql } from "@/lib/db";
-import { fillAges, getGameDetail } from "@/lib/roblox/queries";
+import { fillAges, getGameDetail, tryLive } from "@/lib/roblox/queries";
 import { MARKET_TAG } from "./market";
 
 export type CompareGame = {
@@ -74,7 +74,7 @@ async function compareCached(ids: number[]): Promise<CompareGame[]> {
   for (const id of ids) {
     const r = rows.find((x) => x.universeId === id);
     // DB'de yoksa ya da anlık değer eksikse canlı API'den tamamla
-    const live = !r || r.playing == null ? await getGameDetail(id) : null;
+    const live = !r || r.playing == null ? await tryLive(() => getGameDetail(id)) : null;
     if (!r && !live) continue;
     const prices = (r?.prices ?? live?.passes.map((p) => p.price ?? 0).filter((p) => p > 0) ?? []).map(Number).sort((a, b) => a - b);
     const created = r?.createdAtRbx ? new Date(r.createdAtRbx).toISOString() : (live?.createdAt ?? new Date(0).toISOString());

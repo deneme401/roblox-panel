@@ -2,7 +2,7 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { sql } from "@/lib/db";
 import { SORT_IDS, type SortId } from "@/lib/roblox/client";
-import { fillAges, getDiscoverGames, type GameRow } from "@/lib/roblox/queries";
+import { fillAges, getDiscoverGames, tryLive, type GameRow } from "@/lib/roblox/queries";
 
 export const MARKET_TAG = "market";
 
@@ -64,7 +64,10 @@ function toGameRow(m: MetricRow, sorts: Partial<Record<SortId, number>>, spark: 
  */
 export async function getMarketRows(): Promise<{ games: GameRow[]; source: "db" | "live"; updatedAt: string | null }> {
   const r = await marketRowsCached();
-  return r.source === "live" ? await getDiscoverGames().then((l) => ({ games: l.games, source: "live" as const, updatedAt: l.fetchedAt })) : { ...r, games: fillAges(r.games) };
+  if (r.source === "db") return { ...r, games: fillAges(r.games) };
+  // DB boş: canlı API'yi dene; ulaşılamazsa boş liste (sayfa çökmesin)
+  const l = await tryLive(getDiscoverGames);
+  return { games: l?.games ?? [], source: "live", updatedAt: l?.fetchedAt ?? null };
 }
 
 async function marketRowsCached(): Promise<{ games: GameRow[]; source: "db" | "live"; updatedAt: string | null }> {
@@ -72,19 +75,24 @@ async function marketRowsCached(): Promise<{ games: GameRow[]; source: "db" | "l
   cacheLife({ stale: 60, revalidate: 300, expire: 3600 });
   cacheTag(MARKET_TAG);
 
-  const metrics = await sql<MetricRow[]>`
-    select m.universe_id, m.place_id, m.name, m.genre, m.subgenre, m.icon_url, m.creator_name, m.tracked,
-      m.created_at_rbx, m.updated_at_rbx, m.playing, m.visits, m.favorites, m.like_ratio,
-      m.growth_24h, m.growth_7d, m.visits_24h, m.rise_score, g.ai_tags
-    from game_metrics m join games g using (universe_id)
-    where m.tracked or g.last_seen_in_sort_at > now() - interval '2 days'`;
+  // Sorgular paralel: DB uzakken (lokal geliştirme) her ardışık sorgu bir gidiş-dönüş ekler
+  const [metrics, ranks, sparks] = await Promise.all([
+    sql<MetricRow[]>`
+      select m.universe_id, m.place_id, m.name, m.genre, m.subgenre, m.icon_url, m.creator_name, m.tracked,
+        m.created_at_rbx, m.updated_at_rbx, m.playing, m.visits, m.favorites, m.like_ratio,
+        m.growth_24h, m.growth_7d, m.visits_24h, m.rise_score, g.ai_tags
+      from game_metrics m join games g using (universe_id)
+      where m.tracked or g.last_seen_in_sort_at > (select max(last_seen_in_sort_at) from games) - interval '2 days'`,
+    sql<{ universeId: number; sortId: SortId; rank: number; ts: Date }[]>`
+      select universe_id, sort_id, rank, ts from sort_appearances
+      where ts = (select max(ts) from sort_appearances)`,
+    sql<{ universeId: number; values: number[] }[]>`
+      select universe_id, array_agg(playing order by ts) as values
+      from game_snapshots where ts > (select max(ts) from game_snapshots) - interval '48 hours'
+      group by universe_id`,
+  ]);
   if (!metrics.length) return { games: [], source: "live", updatedAt: null };
-
-  const [latest] = await sql<{ ts: Date | null }[]>`select max(ts) as ts from sort_appearances`;
-  const ranks = latest?.ts
-    ? await sql<{ universeId: number; sortId: SortId; rank: number }[]>`
-        select universe_id, sort_id, rank from sort_appearances where ts = ${latest.ts}`
-    : [];
+  const latestTs = ranks[0]?.ts ?? null;
   const sortMap = new Map<number, Partial<Record<SortId, number>>>();
   for (const r of ranks) {
     if (!SORT_IDS.includes(r.sortId)) continue;
@@ -92,16 +100,12 @@ async function marketRowsCached(): Promise<{ games: GameRow[]; source: "db" | "l
     s[r.sortId] = r.rank;
     sortMap.set(r.universeId, s);
   }
-  const sparks = await sql<{ universeId: number; values: number[] }[]>`
-    select universe_id, array_agg(playing order by ts) as values
-    from game_snapshots where ts > now() - interval '48 hours'
-    group by universe_id`;
   const sparkMap = new Map(sparks.map((s) => [s.universeId, s.values.map(Number)]));
 
   return {
     games: metrics.map((m) => toGameRow(m, sortMap.get(m.universeId) ?? {}, sparkMap.get(m.universeId) ?? [])),
     source: "db",
-    updatedAt: latest?.ts ? new Date(latest.ts).toISOString() : null,
+    updatedAt: latestTs ? new Date(latestTs).toISOString() : null,
   };
 }
 
@@ -111,18 +115,20 @@ export async function getPulse() {
   cacheLife({ stale: 60, revalidate: 300, expire: 3600 });
   cacheTag(MARKET_TAG);
 
-  const series = await sql<{ ts: Date; playing: number; games: number }[]>`
-    select ts, sum(playing)::bigint as playing, count(*)::int as games
-    from game_snapshots where ts > now() - interval '48 hours'
-    group by ts order by ts`;
+  const [series, [cmp]] = await Promise.all([
+    sql<{ ts: Date; playing: number; games: number }[]>`
+      select ts, sum(playing)::bigint as playing, count(*)::int as games
+      from game_snapshots where ts > (select max(ts) from game_snapshots) - interval '48 hours'
+      group by ts order by ts`,
+    // İzlenen oyun kümesi zamanla değiştiği için 24s değişimi yalnızca iki anda da ölçülen oyunlarla hesaplanır
+    sql<{ now: number | null; before: number | null }[]>`
+      with t as (select max(ts) as ts from game_snapshots)
+      select sum(a.playing)::bigint as now, sum(b.playing)::bigint as before
+      from game_snapshots a
+      join game_snapshots b on b.universe_id = a.universe_id and b.ts = a.ts - interval '24 hours'
+      where a.ts = (select ts from t)`,
+  ]);
   const last = series.at(-1);
-  // İzlenen oyun kümesi zamanla değiştiği için 24s değişimi yalnızca iki anda da ölçülen oyunlarla hesaplanır
-  const [cmp] = await sql<{ now: number | null; before: number | null }[]>`
-    with t as (select max(ts) as ts from game_snapshots)
-    select sum(a.playing)::bigint as now, sum(b.playing)::bigint as before
-    from game_snapshots a
-    join game_snapshots b on b.universe_id = a.universe_id and b.ts = a.ts - interval '24 hours'
-    where a.ts = (select ts from t)`;
   return {
     series: series.map((s) => ({
       label: new Date(s.ts).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Istanbul" }),

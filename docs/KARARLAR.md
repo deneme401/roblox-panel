@@ -55,3 +55,9 @@ Format: **#No — Başlık** (tarih). Bağlam → Karar → Sonuç.
 ### #12 — Tüm uygulama sayfaları istek anında render (2026-10-14)
 - **Bağlam:** Cache Components ile prerender sırasında `Date.now()` ("x dk önce", yaş, çerez süresi) hata veriyor; `"use cache"` içinde de yasak.
 - **Karar:** Sayfalar `await connection()` ile dinamik; pazar verisi yine `"use cache"` ile 5 dk önbellekli; yaşlar `fillAges()` ile önbellek dışında hesaplanır.
+
+### #13 — Sayfalar canlı Roblox API'sine bağımlı değil (2026-10-15)
+- **Bağlam:** Türkiye'den Roblox API'lerine erişilemiyor; view "son 3 saat" şartıyla veri eskiyince boşalıyor, sayfalar canlı API'ye düşüp 10 sn bekleyip çöküyordu.
+- **Karar:** Metrikler en son snapshot'a göre (`0005`). Okuma her zaman DB'den; canlı API yalnızca DB'de olmayan oyun için `tryLive()` (5 sn, hata → null) ile. Toplayıcılar canlıda (syd1) çalışır.
+- **Sonuç:** Toplama durursa panel son bilinen veriyi gösterir; ağ sorunu sayfayı kırmaz. "24s büyüme" son snapshot'a göredir — veri eskiyse Ayarlar'daki son çalışma zamanına bakılmalı.
+

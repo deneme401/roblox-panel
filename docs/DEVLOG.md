@@ -4,6 +4,28 @@ En yeni giriş en üstte.
 
 ---
 
+## 2026-10-15 — Oturum 2: Oyun sayfası hatası + yavaşlık
+
+**Sorun:** Trendler'den oyuna girince hata (digest), Pano/Trendler/Oyun ~10–15 sn.
+
+**Teşhis**
+- Bu makineden Roblox API'lerine (`apis.roblox.com`, `games.roblox.com`, `thumbnails.roblox.com`) **hiç bağlanılamıyor** (TCP connect timeout; Türkiye'de Roblox erişim engeli). Önceki oturumda toplama çalışmıştı (o sırada farklı ağ/VPN olabilir).
+- `game_metrics` view'ı yalnızca **son 3 saatte** snapshot'ı olan oyunları gösteriyordu. Cron henüz kurulmadığı için veri ~1 gün eskiydi → view boş → sayfalar canlı Roblox'a düştü → 10 sn zaman aşımı → hata.
+- DB gecikmesi (TR → Sidney): sorgu başına ~360 ms, yeni bağlantı 2,7 sn (ilk soğuk bağlantı 18 sn). Doğrudan DB adresi (`db.<ref>.supabase.co`, IPv6) bu ağdan çözülmüyor.
+
+**Yapılanlar**
+- `0005_metrics_relative.sql`: view her oyunun **en son** snapshot'ını kullanır, büyüme pencereleri o snapshot'ın zamanına göre. Veri eskise de panel dolu kalır (ADR #13).
+- Sayfalar artık önce DB'den okur: `getGameBase()` (`lib/data/game.ts`) oyun sayfasının temel bilgisini DB'den verir; canlı API yalnızca oyun DB'de yoksa `tryLive()` ile (5 sn sınır, hata → null) denenir. Trendler/Kıyasla yedekleri de `tryLive`.
+- `client.ts` fetch'lerine 15 sn `AbortSignal.timeout`.
+- `market.ts`: 4 ardışık sorgu → 3 paralel sorgu; "son 2 gün"/"48 saat" filtreleri `now()` yerine en son veri zamanına göre. `getPulse` sorguları paralel.
+- Migration bu ağda pooler üzerinden çalıştırıldı: `DATABASE_URL_DIRECT=<pooler url> node scripts/migrate.mjs`.
+
+**Ölçüm (lokal prod, `next start`):** ilk açılış 2–12 sn (soğuk bağlantı + önbellek boş), sonraki açılışlar 0,4–0,9 sn (oyun sayfası ilk kez 2,6–4,4 sn).
+
+**Not:** Lokal yavaşlığın kalıcı çözümü Vercel `syd1` deploy'u (DB ile aynı bölge). Saatlik toplama da bu makineden Roblox'a erişilemediği için ancak canlıda (pg_cron → Vercel) çalışır.
+
+---
+
 ## 2026-10-14 — Oturum 1 (devam 2): Faz 2–8 + Faz 9 hazırlığı
 
 **Kullanıcıdan gelenler:** Supabase bilgileri (URL, publishable key, DB bağlantısı). "Mail gerek yok, isimler Yusuf ve Mertcan." "Fazlar bitene kadar durma."

@@ -1,7 +1,7 @@
 # 04 — Veritabanı (Supabase)
 
 > Durum: **uygulandı** (2026-10-14). Proje ref `ttsbfpzpgujvplciiczx`, bölge **ap-southeast-2 (Sidney)**, Postgres 17.
-> Şema: `supabase/migrations/*.sql`, uygulama: `node scripts/migrate.mjs` (uygulananlar `_migrations` tablosunda).
+> Şema: `supabase/migrations/*.sql`, uygulama: `node scripts/migrate.mjs` (doğrudan adres çözülmezse `DATABASE_URL_DIRECT=<pooler url>` ile) (uygulananlar `_migrations` tablosunda).
 
 ## Erişim modeli (ADR #8)
 - Uygulama veritabanına **yalnızca sunucudan** `postgres` (porsager) istemcisiyle bağlanır: `src/lib/db.ts`, transaction pooler (6543, `prepare: false`).
@@ -37,8 +37,8 @@
 | `activity` | `actor`, `verb`, `entity_type`, `entity_id`, `label`, `meta` |
 | `compare_sets` | `name`, `universe_ids bigint[]`, `created_by` |
 
-## `game_metrics` view (0002_metrics.sql)
-Son 3 saatteki en yeni snapshot'ı olan oyunlar için:
+## `game_metrics` view (0002 → 0005_metrics_relative.sql)
+Her oyunun **en son** snapshot'ı için; büyüme pencereleri `now()`'a değil o snapshot'ın zamanına göre (veri eskise de boşalmaz, ADR #13):
 - `growth_24h` = (şimdi − 22–26 saat önceki ort.) / o ortalama
 - `growth_7d` = (şimdi − 165–171 saat önceki ort., yoksa 7 gün önceki `game_daily.avg_playing`) / o değer
 - `visits_24h`, `like_ratio`, `age_days`, `uac_first_seen`

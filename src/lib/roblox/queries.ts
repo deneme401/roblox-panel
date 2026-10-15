@@ -150,3 +150,19 @@ async function gameDetailCached(universeId: number): Promise<GameDetail | null> 
     passes: passes.filter((p) => p.isForSale).map((p) => ({ id: p.id, name: p.name, price: p.price })),
   };
 }
+
+/**
+ * Sayfalar için canlı API yedeği: Roblox'a ulaşılamazsa (ör. ağ engeli, zaman aşımı) sayfa çökmesin ve
+ * uzun süre beklemesin diye `ms` sonra ya da hata olursa null döner.
+ */
+export async function tryLive<T>(fn: () => Promise<T>, ms = 5000): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([fn(), new Promise<null>((r) => (timer = setTimeout(() => r(null), ms)))]);
+  } catch (e) {
+    console.warn("[roblox] canlı API'ye ulaşılamadı:", e instanceof Error ? e.message : e);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}

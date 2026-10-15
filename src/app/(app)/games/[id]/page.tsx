@@ -11,8 +11,8 @@ import { CcuChart } from "@/components/game/ccu-chart";
 import { AnalyzeButton, GameActions } from "@/components/game/game-actions";
 import { SignalItem } from "@/components/signals/signal-item";
 import { CommentsSection, NotesSection, SectionSkeleton } from "@/components/workspace/sections";
-import { getGameDetail } from "@/lib/roblox/queries";
-import { getGameAnalysis, getGameHistory, getGameIdeas } from "@/lib/data/game";
+import { getGameDetail, tryLive } from "@/lib/roblox/queries";
+import { getGameAnalysis, getGameBase, getGameHistory, getGameIdeas } from "@/lib/data/game";
 import { listSignals } from "@/lib/data/signals";
 import { hasGemini } from "@/lib/ai/gemini";
 import { SORT_LABELS, type SortId } from "@/lib/roblox/client";
@@ -133,7 +133,9 @@ async function GameDetail({ params }: { params: PageProps<"/games/[id]">["params
   const { id } = await params;
   const universeId = Number(id);
   if (!Number.isSafeInteger(universeId)) notFound();
-  const [game, hist] = await Promise.all([getGameDetail(universeId), getGameHistory(universeId)]);
+  // Önce DB (hızlı, Roblox erişiminden bağımsız); oyun DB'de yoksa canlı API'yi kısa zaman aşımıyla dene
+  const [dbGame, hist] = await Promise.all([getGameBase(universeId), getGameHistory(universeId)]);
+  const game = dbGame ?? (await tryLive(() => getGameDetail(universeId)));
   if (!game) notFound();
 
   // DB'de gamepass geçmişi varsa onu kullan (ilk görülme tarihleriyle), yoksa canlı listeyi

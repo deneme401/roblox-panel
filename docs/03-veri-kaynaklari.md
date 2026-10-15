@@ -1,6 +1,8 @@
 # 03 — Veri Kaynakları
 
 ## Roblox resmi (herkese açık, auth gerektirmez)
+
+> **Erişim notu (2026-10-15):** Türkiye'deki geliştirme makinesinden bu API'lere bağlanılamıyor (TCP zaman aşımı). Toplayıcılar canlıda Vercel syd1 üzerinden çalışır; lokal toplama için VPN gerekir. Sayfalar canlı API'ye bağımlı değildir (ADR #13).
 2026-10-14 tarihinde test edildi ✅
 
 | Amaç | Endpoint | Not |

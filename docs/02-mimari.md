@@ -44,7 +44,7 @@ src/
     ai/                    # gemini.ts (zincir), tasks.ts (değerlendirme/analiz/etiket)
     realtime/client.ts     # tek kanal, notifyChange / onChange / onPresence
 scripts/                   # migrate.mjs, run-job.mts, setup-cron.mjs, env.mjs
-supabase/migrations/       # 0001 şema, 0002 metrik view, 0003 AI kolonları, 0004 güncelleme geçmişi
+supabase/migrations/       # 0001 şema, 0002 metrik view, 0003 AI kolonları, 0004 güncelleme geçmişi, 0005 metrikler son snapshot'a göre
 ```
 
 ## Önbellek ve render
@@ -74,3 +74,5 @@ Lokal: `npx tsx --env-file=.env.local scripts/run-job.mts hourly|daily|signals`.
 
 ## Performans notu
 Bu makineden (Türkiye) Sidney'deki pooler'a bağlantı kurulumu ~1,5 sn; 10 sn `connect_timeout` paralel sorgularda aşılıyordu → 30 sn yapıldı, `idle_timeout` 300 sn. Canlıda Vercel `syd1`'de çalıştığı için sorun değil.
+
+2026-10-15 ölçümü: sorgu başına ~360 ms, bağlantı 2,7 sn (soğuk 18 sn). Bu yüzden veri katmanında sorgular mümkün olduğunca **paralel** (`Promise.all`). Bu ağdan Roblox API'lerine erişilemiyor; sayfalar yalnızca DB'den okur (ADR #13).

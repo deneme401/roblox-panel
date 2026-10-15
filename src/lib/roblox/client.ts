@@ -48,7 +48,7 @@ export type GamePass = { id: number; name: string; price: number | null; isForSa
 // Bu modül önbelleklemez; sayfalar lib/roblox/queries.ts ("use cache") üzerinden okur,
 // toplayıcılar (cron) doğrudan bunu kullanır.
 async function getJson<T>(url: string, attempt = 0): Promise<T> {
-  const res = await fetch(url, { headers: { accept: "application/json" } });
+  const res = await fetch(url, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
   if ((res.status === 429 || res.status >= 500) && attempt < 3) {
     await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
     return getJson(url, attempt + 1);
