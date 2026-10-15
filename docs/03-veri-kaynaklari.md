@@ -32,5 +32,5 @@ Rate limit: Resmi bir sayı yok. Batch'ler arasında kısa bekleme yapılır, 42
 
 ## Gemini
 - `src/lib/ai/gemini.ts`: `GEMINI_MODELS` sırayla denenir; 429/404/5xx/zaman aşımı (45 sn) → sıradaki model. Her çağrı `ai_calls` tablosuna yazılır, Ayarlar'da 24 saatlik başarı/hata görünür.
-- Varsayılan zincir: `gemini-2.5-flash` → `gemini-2.5-flash-lite` → `gemini-2.0-flash`. **Henüz anahtar yok, gerçek çağrı test edilmedi.** Anahtar eklenince Ayarlar → "Anahtarın erişebildiği modelleri listele" ile `models.list` sonucu görülür; zincir buna göre `GEMINI_MODELS` ile güncellenir.
+- **Varsayılan zincir (2026-10-15, anahtarla doğrulandı):** `gemini-3.8-flash` → `gemini-3.5-flash` → `gemini-3.5-flash-lite`, sonuna her zaman `gemini-flash-latest` ve `gemini-flash-lite-latest` takma adları eklenir (modeller kapatılsa da çalışsın). 2.x modelleri yeni kullanıcılara 404 veriyor. 3.x flash modelleri yoğun saatlerde sık 503 dönüyor; zincir otomatik geçiyor (test: 3.8 ve 3.5 → 503, 3.5-flash-lite ile oyun analizi ~5 sn). Ayarlar → "Anahtarın erişebildiği modelleri listele" ile güncel liste görülür, `GEMINI_MODELS` ile değiştirilir.
 - Görevler (`src/lib/ai/tasks.ts`, JSON şemalı çıktı): fikir değerlendirme, oyun analizi, günlük toplu tür etiketleme (25 oyun).

@@ -36,7 +36,7 @@ RoRadar, iki kişilik ekibimizin Roblox oyun geliştirme sürecinde kullandığ�
 | 4 | Pano, Trendler, Oyun Detay | ✅ (büyüme verisi 24 saat/7 gün içinde dolar) |
 | 5 | Kıyaslama | ✅ |
 | 6 | Workspace: notlar, fikirler, yorumlar, aktivite, realtime | ✅ |
-| 7 | Gemini AI katmanı | 🟡 kod hazır; **Gemini anahtarı bekleniyor** |
+| 7 | Gemini AI katmanı | ✅ (zincir: 3.8-flash → 3.5-flash → 3.5-flash-lite + latest takma adları) |
 | 8 | Apify sinyalleri | ✅ |
 | 9 | Deploy + zamanlama | 🟡 `vercel.json` + `setup-cron.mjs` hazır; **Vercel hesabıyla deploy bekleniyor** |
 

@@ -3,12 +3,17 @@
 import { ApiError, GoogleGenAI, type Schema } from "@google/genai";
 import { sql } from "@/lib/db";
 
-export const DEFAULT_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"];
+// 2026-10-15: 2.x modelleri yeni kullanıcılara kapandı (404). Anahtarla doğrulanan zincir:
+export const DEFAULT_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite"];
+// Zincirin sonuna eklenen, Google'ın her zaman güncel modele yönlendirdiği takma adlar:
+// listedeki modeller ileride kapatılsa da AI çalışmaya devam eder.
+const ALIAS_FALLBACK = ["gemini-flash-latest", "gemini-flash-lite-latest"];
 const TIMEOUT_MS = 45_000;
 
 export function geminiModels() {
   const env = process.env.GEMINI_MODELS?.split(",").map((s) => s.trim()).filter(Boolean);
-  return env?.length ? env : DEFAULT_MODELS;
+  const list = env?.length ? env : DEFAULT_MODELS;
+  return [...list, ...ALIAS_FALLBACK.filter((m) => !list.includes(m))];
 }
 
 export function hasGemini() {

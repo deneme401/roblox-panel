@@ -4,6 +4,16 @@ En yeni giriş en üstte.
 
 ---
 
+## 2026-10-15 — Oturum 2 (devam 2): Gemini model zinciri güncellendi
+
+- Kullanıcı Gemini anahtarını ekledi; tüm modeller 404 verdi ("no longer available to new users").
+- `models.list` + deneme çağrılarıyla doğrulandı: 3.5-flash ve 3.5-flash-lite cevap veriyor, 3.8/3.7/3.6-flash mevcut ama o an 503 (yoğunluk).
+- `DEFAULT_MODELS` → `gemini-3.8-flash, gemini-3.5-flash, gemini-3.5-flash-lite`; zincirin sonuna `gemini-flash-latest`, `gemini-flash-lite-latest` takma adları otomatik eklenir. `.env.example` güncellendi.
+- Uçtan uca test: Blox Fruits oyun analizi → 3.8 (503) → 3.5 (503) → **3.5-flash-lite ✓**, toplam ~20 sn. Faz 7 ✅.
+- Not: Vercel'de `GEMINI_MODELS` girilirse yeni değerler kullanılmalı (ya da boş bırakılmalı).
+
+---
+
 ## 2026-10-15 — Oturum 2 (devam): Güncel oyuncu sayıları (pg_net aktarımı)
 
 **Sorun:** Oyun sayıları ~1 gün eskiydi (son toplama 14 Ekim 19:00 UTC); bu makineden Roblox'a erişilemediği için toplama çalışmıyordu.
