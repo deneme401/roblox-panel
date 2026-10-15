@@ -25,7 +25,8 @@ const clean = (...c: (string | null | undefined)[]) => c.find((x) => x && x !== 
 /** Oyun detaylarını games tablosuna yazar ve bir snapshot ekler. */
 export async function storeGames(ids: number[], ts: Date) {
   if (!ids.length) return 0;
-  const [details, votes, icons] = await Promise.all([getGames(ids), getVotes(ids), getIcons(ids)]);
+  const [all, votes, icons] = await Promise.all([getGames(ids), getVotes(ids), getIcons(ids)]);
+  const details = [...new Map(all.map((g) => [g.id, g])).values()];
   if (!details.length) return 0;
   const voteMap = new Map(votes.map((v) => [v.id, v]));
   const gameRows = details.map((g: RobloxGame) => ({
@@ -41,7 +42,7 @@ export async function storeGames(ids: number[], ts: Date) {
     created_at_rbx: g.created,
     updated_at_rbx: g.updated,
     icon_url: icons.get(g.id) ?? null,
-    last_snapshot_at: ts,
+    last_snapshot_at: new Date(), // gerçek ölçüm anı (snapshot ts saat başına yuvarlanır)
   }));
   await sql`
     insert into games ${sql(gameRows)}
@@ -87,7 +88,11 @@ export async function collectHourly(): Promise<JobResult> {
   const appearances: { ts: Date; sort_id: string; universe_id: number; rank: number }[] = [];
   const basics = new Map<number, { universe_id: number; place_id: number; name: string; last_seen_in_sort_at: Date }>();
   for (const id of SORT_IDS) {
+    const seen = new Set<number>();
     sorts[id]?.forEach((g, i) => {
+      // Roblox bazen aynı oyunu bir listede iki kez döndürüyor; ilk (en iyi) sıra kalsın
+      if (seen.has(g.universeId)) return;
+      seen.add(g.universeId);
       appearances.push({ ts, sort_id: id, universe_id: g.universeId, rank: i + 1 });
       basics.set(g.universeId, { universe_id: g.universeId, place_id: g.rootPlaceId, name: g.name, last_seen_in_sort_at: ts });
     });
@@ -111,7 +116,7 @@ export async function collectHourly(): Promise<JobResult> {
         best_rank = least(sort_presence.best_rank, excluded.best_rank)`;
   }
   const targets = await sql<{ universeId: number }[]>`
-    select universe_id from games
+    select distinct universe_id from games
     where tracked or last_seen_in_sort_at > now() - interval '3 days'
        or universe_id in (select universe_id from idea_games)`;
   const snaps = await storeGames(targets.map((t) => t.universeId), ts);

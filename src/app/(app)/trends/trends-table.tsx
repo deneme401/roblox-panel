@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { ArrowDownUp, Search, Star } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn, formatCompact } from "@/lib/utils";
-import { SORT_IDS, SORT_LABELS, type SortId } from "@/lib/roblox/client";
+import { SORT_IDS, SORT_LABELS, type SortId } from "@/lib/roblox/sorts";
 import type { GameRow } from "@/lib/roblox/queries";
 import { GameIcon, ageLabel } from "@/components/game/game-bits";
 import { Sparkline } from "@/components/charts/charts";

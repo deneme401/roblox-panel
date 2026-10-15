@@ -38,7 +38,7 @@ src/
     db.ts                  # postgres istemcisi (pooler)
     actions.ts             # TÜM Server Action'lar (yazma işlemleri)
     auth/                  # members, token (HMAC, Web Crypto), session (getMember/requireMember)
-    roblox/                # client.ts (önbelleksiz), queries.ts (canlı, "use cache")
+    roblox/                # client.ts (önbelleksiz), relay.ts (pg_net aktarımı), sorts.ts (sabitler), queries.ts (canlı, "use cache")
     collect/               # jobs.ts (saatlik/gamepass/rollup), signals.ts (Apify), schedule.ts
     data/                  # okuma katmanı: market, game, compare, workspace(+shared), signals, settings
     ai/                    # gemini.ts (zincir), tasks.ts (değerlendirme/analiz/etiket)

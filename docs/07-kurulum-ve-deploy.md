@@ -29,6 +29,7 @@ Ayarlar sayfasındaki "çalıştır" düğmeleri de aynı işi yapar.
 | `APP_PASSWORD` | Canlıda ekip şifresi. Boşsa giriş sadece isim seçimi | canlıda ✅ |
 | `CRON_SECRET` | Rastgele; `/api/cron/*` yetkisi | ✅ |
 | `APIFY_TOKEN`, `SIGNAL_ITEMS` | Apify → Settings → Integrations | sinyaller |
+| `ROBLOX_RELAY` | `pgnet`: Roblox isteklerini Supabase pg_net üzerinden yap (Roblox'a erişilemeyen ağ, ör. TR lokal). **Canlıda boş** | lokal TR |
 | `GEMINI_API_KEY`, `GEMINI_MODELS` | https://aistudio.google.com/apikey | AI |
 
 ## Vercel'e deploy (Faz 9)

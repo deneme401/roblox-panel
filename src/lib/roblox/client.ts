@@ -1,15 +1,9 @@
 // Roblox herkese açık API istemcisi. Endpoint'ler ve test notları: docs/03-veri-kaynaklari.md
 
-export const SORT_IDS = ["top-trending", "up-and-coming", "top-playing-now", "fun-with-friends", "top-revisited"] as const;
-export type SortId = (typeof SORT_IDS)[number];
+import { relayEnabled, relayGet } from "./relay";
+import { SORT_IDS, type SortId } from "./sorts";
 
-export const SORT_LABELS: Record<SortId, string> = {
-  "top-trending": "En Trend",
-  "up-and-coming": "Yükselen (son 28 gün)",
-  "top-playing-now": "Şu An En Çok Oynanan",
-  "fun-with-friends": "Arkadaşlarla",
-  "top-revisited": "En Çok Geri Dönülen",
-};
+export { SORT_IDS, SORT_LABELS, type SortId } from "./sorts";
 
 export type SortGame = {
   universeId: number;
@@ -48,13 +42,21 @@ export type GamePass = { id: number; name: string; price: number | null; isForSa
 // Bu modül önbelleklemez; sayfalar lib/roblox/queries.ts ("use cache") üzerinden okur,
 // toplayıcılar (cron) doğrudan bunu kullanır.
 async function getJson<T>(url: string, attempt = 0): Promise<T> {
-  const res = await fetch(url, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
-  if ((res.status === 429 || res.status >= 500) && attempt < 3) {
+  let status: number;
+  let body: string;
+  if (relayEnabled()) {
+    ({ status, body } = await relayGet(url));
+  } else {
+    const res = await fetch(url, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
+    status = res.status;
+    body = await res.text();
+  }
+  if ((status === 429 || status >= 500) && attempt < 3) {
     await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
     return getJson(url, attempt + 1);
   }
-  if (!res.ok) throw new Error(`Roblox API ${res.status}: ${url}`);
-  return res.json() as Promise<T>;
+  if (status < 200 || status >= 300) throw new Error(`Roblox API ${status}: ${url}`);
+  return JSON.parse(body) as T;
 }
 
 function chunk<T>(arr: T[], size: number) {

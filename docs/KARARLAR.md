@@ -61,3 +61,8 @@ Format: **#No — Başlık** (tarih). Bağlam → Karar → Sonuç.
 - **Karar:** Metrikler en son snapshot'a göre (`0005`). Okuma her zaman DB'den; canlı API yalnızca DB'de olmayan oyun için `tryLive()` (5 sn, hata → null) ile. Toplayıcılar canlıda (syd1) çalışır.
 - **Sonuç:** Toplama durursa panel son bilinen veriyi gösterir; ağ sorunu sayfayı kırmaz. "24s büyüme" son snapshot'a göredir — veri eskiyse Ayarlar'daki son çalışma zamanına bakılmalı.
 
+### #14 — Roblox erişimi olmayan ağda pg_net aktarımı (2026-10-15)
+- **Bağlam:** Türkiye'den Roblox API'lerine erişim yok; lokal toplama ve "Güncelle" çalışmıyordu. Supabase DB sunucusu (Sidney) Roblox'a erişebiliyor.
+- **Karar:** `ROBLOX_RELAY=pgnet` ortam değişkeniyle tüm Roblox GET'leri `net.http_get` üzerinden yapılır (`src/lib/roblox/relay.ts`). Varsayılan doğrudan `fetch`.
+- **Sonuç:** VPN gerekmeden lokal güncel veri. İstek başına ~1–3 sn ek gecikme; yanıtlar `net._http_response`'ta 6 saat tutulur (pg_net varsayılanı). Canlıda (syd1) kapalı tutulur.
+

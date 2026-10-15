@@ -79,6 +79,24 @@ export async function setTracked(universeId: number, tracked: boolean): Promise<
   }
 }
 
+/** Tek oyunun anlık oyuncu/ziyaret/oy değerlerini Roblox'tan çekip bu saatin snapshot'ına yazar. */
+export async function refreshGame(universeId: number): Promise<ActionResult<{ playing: number | null }>> {
+  try {
+    await requireMember();
+    const ts = new Date();
+    ts.setUTCMinutes(0, 0, 0);
+    const n = await storeGames([universeId], ts);
+    if (!n) return { ok: false, error: "Roblox bu oyun için veri döndürmedi" };
+    const [r] = await sql<{ playing: number }[]>`
+      select playing from game_snapshots where universe_id = ${universeId} order by ts desc limit 1`;
+    updateTag(MARKET_TAG);
+    refresh();
+    return { ok: true, data: { playing: r?.playing ?? null } };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
 export async function analyzeGameAction(universeId: number): Promise<ActionResult<{ model: string }>> {
   try {
     const me = await requireMember();

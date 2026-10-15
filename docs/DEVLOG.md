@@ -4,6 +4,23 @@ En yeni giriş en üstte.
 
 ---
 
+## 2026-10-15 — Oturum 2 (devam): Güncel oyuncu sayıları (pg_net aktarımı)
+
+**Sorun:** Oyun sayıları ~1 gün eskiydi (son toplama 14 Ekim 19:00 UTC); bu makineden Roblox'a erişilemediği için toplama çalışmıyordu.
+
+**Yapılanlar**
+- Test: Supabase'in `pg_net` uzantısıyla (`net.http_get`) DB sunucusundan Roblox'a istek → 200. Sidney'den erişim var.
+- `src/lib/roblox/relay.ts`: `ROBLOX_RELAY=pgnet` ise `client.ts`'deki tüm Roblox GET'leri pg_net üzerinden (istek → `net._http_response` artan aralıklarla yoklanır). `.env.local`'a eklendi; canlıda boş bırakılır (ADR #14).
+- `src/lib/roblox/sorts.ts`: `SORT_IDS`/`SORT_LABELS` ayrıldı (istemci bileşeni `trends-table` artık DB'li modülü dolaylı import etmiyor). `client.ts` yeniden dışa aktarır.
+- Toplayıcı hatası düzeltildi: Roblox bir listede aynı oyunu iki kez döndürünce `sort_presence` upsert'i "ON CONFLICT ... a second time" veriyordu → liste ve detaylar tekilleştiriliyor.
+- `games.last_snapshot_at` artık gerçek ölçüm anı (snapshot `ts` saat başına yuvarlı kalır).
+- Oyun sayfasına **Güncelle** düğmesi (`refreshGame` Server Action): o oyunun değerlerini anında çekip bu saatin snapshot'ına yazar; yanında "son ölçüm x dk önce".
+- Saatlik iş relay ile lokal çalıştırıldı: 284 listede oyun, 385 snapshot, ~36 sn. Blox Fruits 155.252 → 211.084 oyuncu.
+
+**Not:** Otomatik saatlik toplama hâlâ Vercel deploy + `setup-cron.mjs` bekliyor. O zamana kadar Ayarlar → "Saatlik çalıştır" veya `npx tsx --env-file=.env.local scripts/run-job.mts hourly` ile elle.
+
+---
+
 ## 2026-10-15 — Oturum 2: Oyun sayfası hatası + yavaşlık
 
 **Sorun:** Trendler'den oyuna girince hata (digest), Pano/Trendler/Oyun ~10–15 sn.

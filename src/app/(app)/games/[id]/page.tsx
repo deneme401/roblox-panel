@@ -186,7 +186,12 @@ async function GameDetail({ params }: { params: PageProps<"/games/[id]">["params
                 </div>
               )}
             </div>
-            <GameActions universeId={universeId} name={game.name} tracked={hist.tracked} />
+            <GameActions
+              universeId={universeId}
+              name={game.name}
+              tracked={hist.tracked}
+              measuredLabel={dbGame?.measuredAt ? timeAgo(dbGame.measuredAt) : null}
+            />
           </div>
 
           <Card>

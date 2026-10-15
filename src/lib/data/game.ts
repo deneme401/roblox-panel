@@ -83,12 +83,12 @@ export async function getGameIdeas(universeId: number) {
 }
 
 /** Oyunun temel bilgisi ve son ölçümü (DB). Sayfa canlı Roblox API'sine bağımlı olmasın diye önce bu okunur. */
-export async function getGameBase(universeId: number): Promise<GameDetail | null> {
+export async function getGameBase(universeId: number): Promise<(GameDetail & { measuredAt: string | null }) | null> {
   const g = await gameBaseCached(universeId);
   return g ? fillAges([g])[0] : null;
 }
 
-async function gameBaseCached(universeId: number): Promise<GameDetail | null> {
+async function gameBaseCached(universeId: number): Promise<(GameDetail & { measuredAt: string | null }) | null> {
   "use cache";
   cacheLife({ stale: 60, revalidate: 300, expire: 3600 });
   cacheTag(MARKET_TAG, `game-${universeId}`);
@@ -112,10 +112,12 @@ async function gameBaseCached(universeId: number): Promise<GameDetail | null> {
       upVotes: number | null;
       downVotes: number | null;
       likeRatio: number | null;
+      lastSnapshotAt: Date | null;
     }[]
   >`
     select g.universe_id, g.place_id, g.name, g.description, g.creator_name, g.genre, g.subgenre, g.max_players,
-      g.icon_url, g.created_at_rbx, g.updated_at_rbx, m.playing, m.visits, m.favorites, m.up_votes, m.down_votes, m.like_ratio
+      g.icon_url, g.created_at_rbx, g.updated_at_rbx, m.playing, m.visits, m.favorites, m.up_votes, m.down_votes, m.like_ratio,
+      g.last_snapshot_at
     from games g left join game_metrics m using (universe_id)
     where g.universe_id = ${universeId}`;
   if (!r) return null;
@@ -143,5 +145,6 @@ async function gameBaseCached(universeId: number): Promise<GameDetail | null> {
     updatedDaysAgo: 0,
     sorts: {},
     passes: [],
+    measuredAt: r.lastSnapshotAt ? new Date(r.lastSnapshotAt).toISOString() : null,
   };
 }

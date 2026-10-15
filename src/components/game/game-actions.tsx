@@ -2,18 +2,40 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { GitCompareArrows, Lightbulb, Sparkles, Star } from "lucide-react";
-import { analyzeGameAction, createIdea, setTracked } from "@/lib/actions";
+import { GitCompareArrows, Lightbulb, RefreshCw, Sparkles, Star } from "lucide-react";
+import { analyzeGameAction, createIdea, refreshGame, setTracked } from "@/lib/actions";
 import { useAction } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
 const btn = "inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold shadow-card transition disabled:opacity-50";
 
-export function GameActions({ universeId, name, tracked }: { universeId: number; name: string; tracked: boolean }) {
+export function GameActions({
+  universeId,
+  name,
+  tracked,
+  measuredLabel,
+}: {
+  universeId: number;
+  name: string;
+  tracked: boolean;
+  /** Son ölçümün ne kadar önce alındığı ("12 dk önce") */
+  measuredLabel?: string | null;
+}) {
   const { pending, run } = useAction();
+  const refreshing = useAction();
   const router = useRouter();
   return (
     <div className="flex flex-wrap gap-2">
+      <button
+        disabled={refreshing.pending}
+        onClick={() => refreshing.run(() => refreshGame(universeId), { success: "Güncel değerler alındı" })}
+        className={cn(btn, "bg-surface dark:border dark:border-line")}
+        title="Oyuncu, ziyaret ve oy sayılarını Roblox'tan şimdi çek"
+      >
+        <RefreshCw className={cn("size-4", refreshing.pending && "animate-spin")} />
+        {refreshing.pending ? "Güncelleniyor…" : "Güncelle"}
+        {measuredLabel && !refreshing.pending && <span className="font-normal text-muted">· {measuredLabel}</span>}
+      </button>
       <button
         disabled={pending}
         onClick={() => run(() => setTracked(universeId, !tracked), { success: tracked ? "Takipten çıkarıldı" : "Takibe alındı" })}
